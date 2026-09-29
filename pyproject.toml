@@ -1,0 +1,39 @@
+[project]
+name = "unifi-mcp"
+version = "0.1.0"
+description = "MCP server for the UniFi Network API"
+readme = "README.md"
+authors = [
+    { name = "Henrik Panhans", email = "henrik@panhans.dev" }
+]
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=4.0.10",
+    "httpx>=0.28.1",
+    "pydantic-settings>=2.15.0",
+]
+
+[project.scripts]
+unifi-mcp = "unifi_mcp:main"
+
+[build-system]
+requires = ["uv_build>=0.9.27,<0.10.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "respx>=0.23.1",
+    "ruff>=0.16.9",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+
+[tool.ruff]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+# The formatter controls the line length.
+ignore = ["E501"]
