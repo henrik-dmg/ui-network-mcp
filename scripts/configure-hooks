@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+# Link each script in scripts/hooks/ into the git hooks directory.
+# The script gets the hooks directory from git, so it obeys core.hooksPath.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+hooks_dir="$(git -C "$root" rev-parse --path-format=absolute --git-path hooks)"
+mkdir -p "$hooks_dir"
+
+for hook in "$root"/scripts/hooks/*; do
+  [[ -f "$hook" ]] || continue
+  chmod +x "$hook"
+  ln -sfn "$hook" "$hooks_dir/$(basename "$hook")"
+  echo "Linked $(basename "$hook") into $hooks_dir"
+done

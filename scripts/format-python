@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Format Python code with ruff.
+#
+# When stdin is a terminal or empty, the script formats the full repository.
+# Otherwise, the script reads the JSON input of a Claude Code PostToolUse hook. It formats only the file of the tool use. For an Edit tool
+# use, it formats only the lines of the new text.
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ruff=(uv run --project "$root" ruff format)
+
+input=""
+if [[ ! -t 0 ]]; then
+  input="$(cat)"
+fi
+if [[ -z "$input" ]]; then
+  exec "${ruff[@]}" "$root"
+fi
+
+file="$(jq -r '.tool_input.file_path // empty' <<<"$input")"
+
+# Ignore tool uses that do not change a Python file.
+if [[ -z "$file" || ! -f "$file" ]]; then
+  exit 0
+fi
+case "$file" in
+  *.py | *.pyi) ;;
+  *) exit 0 ;;
+esac
+
+# For an Edit tool use, find the lines of the new text in the file.
+range=""
+if [[ "$(jq -r '.tool_name' <<<"$input")" == "Edit" ]]; then
+  range="$(jq -r '.tool_input.new_string // empty' <<<"$input" |
+    uv run --project "$root" python -c '
+import sys
+new = sys.stdin.read().removesuffix("\n")
+text = open(sys.argv[1], encoding="utf-8").read()
+index = text.find(new) if new else -1
+if index >= 0:
+    start = text.count("\n", 0, index) + 1
+    print(f"{start}-{start + new.count(chr(10))}")
+' "$file")"
+fi
+
+if [[ -n "$range" ]]; then
+  exec "${ruff[@]}" --range="$range" "$file"
+fi
+exec "${ruff[@]}" "$file"

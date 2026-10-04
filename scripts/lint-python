@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Lint the Python code of the repository with ruff.
+# Give extra arguments to send them to "ruff check", for example "--fix".
+set -euo pipefail
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec uv run --project "$root" ruff check "$root" "$@"
