@@ -56,7 +56,7 @@ def api():
 async def test_tools_are_read_only():
     async with Client(make_server()) as client:
         tools = await client.list_tools()
-    assert len(tools) == 13
+    assert len(tools) == 25
     assert all(tool.annotations.read_only_hint for tool in tools)
 
 
@@ -156,3 +156,17 @@ async def test_get_all_follows_pagination(api):
     )
     client = UniFiClient(httpx.AsyncClient(base_url=BASE))
     assert len(await client.get_all("/v1/sites")) == 201
+
+
+async def test_firewall_policy_ordering_sends_the_zone_pair(api):
+    route = api.get(f"/v1/sites/{SITE}/firewall/policies/ordering").respond(
+        json={"orderedFirewallPolicyIds": {"beforeSystemDefined": ["p1"]}}
+    )
+    async with Client(make_server(default_site_id=SITE)) as client:
+        await client.call_tool(
+            "get_firewall_policy_ordering",
+            {"source_firewall_zone_id": "z1", "destination_firewall_zone_id": "z2"},
+        )
+    params = route.calls.last.request.url.params
+    assert params["sourceFirewallZoneId"] == "z1"
+    assert params["destinationFirewallZoneId"] == "z2"

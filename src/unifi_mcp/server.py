@@ -194,6 +194,144 @@ def build_server(
         """List the WAN interfaces of a site."""
         return await site_page(ctx, site_id, "wans", offset, limit)
 
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "firewall"})
+    async def list_firewall_zones(
+        ctx: Context,
+        site_id: SiteId = None,
+        filter: Filter = None,
+        limit: Limit = 25,
+        offset: Offset = 0,
+    ) -> JSON:
+        """List the firewall zones of a site and the networks in each zone.
+
+        Filterable properties include id, name, metadata.origin, and metadata.configurable.
+        """
+        return await site_page(ctx, site_id, "firewall/zones", offset, limit, filter)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "firewall"})
+    async def get_firewall_zone(
+        ctx: Context, firewall_zone_id: str, site_id: SiteId = None
+    ) -> JSON:
+        """Get one firewall zone and the IDs of its networks."""
+        return await site_item(ctx, site_id, "firewall/zones", firewall_zone_id)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "firewall"})
+    async def list_firewall_policies(
+        ctx: Context,
+        site_id: SiteId = None,
+        filter: Filter = None,
+        limit: Limit = 25,
+        offset: Offset = 0,
+    ) -> JSON:
+        """List the firewall policies of a site. Each policy applies to one source zone and one destination zone.
+
+        Filterable properties include id, name, source.zoneId, destination.zoneId, and metadata.origin.
+        For a readable overview of all policies, call get_firewall_overview.
+        """
+        return await site_page(ctx, site_id, "firewall/policies", offset, limit, filter)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "firewall"})
+    async def get_firewall_policy(
+        ctx: Context, firewall_policy_id: str, site_id: SiteId = None
+    ) -> JSON:
+        """Get one firewall policy: action, source, destination, protocol, schedule, and logging."""
+        return await site_item(ctx, site_id, "firewall/policies", firewall_policy_id)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "firewall"})
+    async def get_firewall_policy_ordering(
+        ctx: Context,
+        source_firewall_zone_id: str,
+        destination_firewall_zone_id: str,
+        site_id: SiteId = None,
+    ) -> JSON:
+        """Get the order of the user-defined firewall policies for one pair of zones.
+
+        The result has the policy IDs before and after the system-defined policies.
+        """
+        site = await resolve_site(ctx, site_id)
+        return await client_of(ctx).get(
+            f"/v1/sites/{site}/firewall/policies/ordering",
+            {
+                "sourceFirewallZoneId": source_firewall_zone_id,
+                "destinationFirewallZoneId": destination_firewall_zone_id,
+            },
+        )
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "acl"})
+    async def list_acl_rules(
+        ctx: Context,
+        site_id: SiteId = None,
+        filter: Filter = None,
+        limit: Limit = 25,
+        offset: Offset = 0,
+    ) -> JSON:
+        """List the ACL rules of a site. The switches apply these rules to traffic in a network.
+
+        Filterable properties include type, id, enabled, name, action, index, networkId, and
+        metadata.origin.
+        """
+        return await site_page(ctx, site_id, "acl-rules", offset, limit, filter)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "acl"})
+    async def get_acl_rule(
+        ctx: Context, acl_rule_id: str, site_id: SiteId = None
+    ) -> JSON:
+        """Get one ACL rule: action, source, destination, and the devices that apply it."""
+        return await site_item(ctx, site_id, "acl-rules", acl_rule_id)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "acl"})
+    async def get_acl_rule_ordering(ctx: Context, site_id: SiteId = None) -> JSON:
+        """Get the order of the user-defined ACL rules of a site."""
+        site = await resolve_site(ctx, site_id)
+        return await client_of(ctx).get(f"/v1/sites/{site}/acl-rules/ordering")
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "dns"})
+    async def list_dns_policies(
+        ctx: Context,
+        site_id: SiteId = None,
+        filter: Filter = None,
+        limit: Limit = 25,
+        offset: Offset = 0,
+    ) -> JSON:
+        """List the DNS policies (local DNS records and forward rules) of a site.
+
+        Filterable properties include type, id, enabled, domain, ipv4Address, ipv6Address, and
+        targetDomain.
+        """
+        return await site_page(ctx, site_id, "dns/policies", offset, limit, filter)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "dns"})
+    async def get_dns_policy(
+        ctx: Context, dns_policy_id: str, site_id: SiteId = None
+    ) -> JSON:
+        """Get one DNS policy."""
+        return await site_item(ctx, site_id, "dns/policies", dns_policy_id)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "firewall"})
+    async def list_traffic_matching_lists(
+        ctx: Context,
+        site_id: SiteId = None,
+        filter: Filter = None,
+        limit: Limit = 25,
+        offset: Offset = 0,
+    ) -> JSON:
+        """List the traffic matching lists of a site. These are named lists of ports or IP addresses.
+
+        Firewall policies refer to these lists by ID. Filterable properties are id and name.
+        """
+        return await site_page(
+            ctx, site_id, "traffic-matching-lists", offset, limit, filter
+        )
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "firewall"})
+    async def get_traffic_matching_list(
+        ctx: Context, traffic_matching_list_id: str, site_id: SiteId = None
+    ) -> JSON:
+        """Get one traffic matching list and its ports or IP addresses."""
+        return await site_item(
+            ctx, site_id, "traffic-matching-lists", traffic_matching_list_id
+        )
+
     @mcp.tool(annotations=READ_ONLY, tags={"read", "topology"})
     async def get_topology(ctx: Context, site_id: SiteId = None) -> JSON:
         """Get the device tree of a site, from the gateway down to each switch and access point.

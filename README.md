@@ -18,6 +18,13 @@ All tools are read-only at this time.
 | `list_networks`, `get_network` | `GET /v1/sites/{siteId}/networks[/{networkId}]` |
 | `list_wifi_broadcasts` | `GET /v1/sites/{siteId}/wifi/broadcasts` |
 | `list_wans` | `GET /v1/sites/{siteId}/wans` |
+| `list_firewall_zones`, `get_firewall_zone` | `GET /v1/sites/{siteId}/firewall/zones[/{firewallZoneId}]` |
+| `list_firewall_policies`, `get_firewall_policy` | `GET /v1/sites/{siteId}/firewall/policies[/{firewallPolicyId}]` |
+| `get_firewall_policy_ordering` | `GET /v1/sites/{siteId}/firewall/policies/ordering` |
+| `list_acl_rules`, `get_acl_rule` | `GET /v1/sites/{siteId}/acl-rules[/{aclRuleId}]` |
+| `get_acl_rule_ordering` | `GET /v1/sites/{siteId}/acl-rules/ordering` |
+| `list_dns_policies`, `get_dns_policy` | `GET /v1/sites/{siteId}/dns/policies[/{dnsPolicyId}]` |
+| `list_traffic_matching_lists`, `get_traffic_matching_list` | `GET /v1/sites/{siteId}/traffic-matching-lists[/{trafficMatchingListId}]` |
 | `get_topology` | Devices, device details, and clients, combined into one device tree |
 
 If a tool call does not include `site_id`, the server uses `UNIFI_DEFAULT_SITE_ID`.
