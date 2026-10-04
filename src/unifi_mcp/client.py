@@ -40,7 +40,7 @@ class UniFiClient:
         self._http = http
 
     @classmethod
-    def from_settings(cls, settings: Settings) -> "UniFiClient":
+    def from_settings(cls, settings: Settings) -> UniFiClient:
         http = httpx.AsyncClient(
             base_url=settings.resolved_base_url,
             headers={
