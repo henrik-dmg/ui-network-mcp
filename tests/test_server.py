@@ -56,7 +56,7 @@ def api():
 async def test_tools_are_read_only():
     async with Client(make_server()) as client:
         tools = await client.list_tools()
-    assert len(tools) == 26
+    assert len(tools) == 32
     assert all(tool.annotations.read_only_hint for tool in tools)
 
 
@@ -230,3 +230,13 @@ async def test_firewall_overview_groups_policies_and_adds_names(api):
     assert first["destinationFilter"]["applicationFilter"]["applicationNames"] == [
         "Steam"
     ]
+
+
+async def test_network_references_use_the_references_path(api):
+    route = api.get(f"/v1/sites/{SITE}/networks/n1/references").respond(
+        json={"referenceResources": []}
+    )
+    async with Client(make_server(default_site_id=SITE)) as client:
+        result = await client.call_tool("get_network_references", {"network_id": "n1"})
+    assert route.called
+    assert result.data == {"referenceResources": []}

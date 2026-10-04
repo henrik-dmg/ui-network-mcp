@@ -16,8 +16,13 @@ All tools are read-only at this time.
 | `list_pending_devices` | `GET /v1/pending-devices` |
 | `list_clients`, `get_client` | `GET /v1/sites/{siteId}/clients[/{clientId}]` |
 | `list_networks`, `get_network` | `GET /v1/sites/{siteId}/networks[/{networkId}]` |
-| `list_wifi_broadcasts` | `GET /v1/sites/{siteId}/wifi/broadcasts` |
+| `get_network_references` | `GET /v1/sites/{siteId}/networks/{networkId}/references` |
+| `list_wifi_broadcasts`, `get_wifi_broadcast` | `GET /v1/sites/{siteId}/wifi/broadcasts[/{wifiBroadcastId}]` |
 | `list_wans` | `GET /v1/sites/{siteId}/wans` |
+| `list_vpn_servers` | `GET /v1/sites/{siteId}/vpn/servers` |
+| `list_site_to_site_tunnels` | `GET /v1/sites/{siteId}/vpn/site-to-site-tunnels` |
+| `list_radius_profiles` | `GET /v1/sites/{siteId}/radius/profiles` |
+| `list_device_tags` | `GET /v1/sites/{siteId}/device-tags` |
 | `list_firewall_zones`, `get_firewall_zone` | `GET /v1/sites/{siteId}/firewall/zones[/{firewallZoneId}]` |
 | `list_firewall_policies`, `get_firewall_policy` | `GET /v1/sites/{siteId}/firewall/policies[/{firewallPolicyId}]` |
 | `get_firewall_policy_ordering` | `GET /v1/sites/{siteId}/firewall/policies/ordering` |

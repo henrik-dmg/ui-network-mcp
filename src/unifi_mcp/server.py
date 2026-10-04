@@ -177,6 +177,16 @@ def build_server(
         """Get the full configuration of one network: VLAN, DHCP, IPv4, and IPv6 settings."""
         return await site_item(ctx, site_id, "networks", network_id)
 
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "networks"})
+    async def get_network_references(
+        ctx: Context, network_id: str, site_id: SiteId = None
+    ) -> JSON:
+        """Get the resources that use one network: clients, devices, Wi-Fi broadcasts, routes, and NAT rules.
+
+        Call this tool before you change or remove a network.
+        """
+        return await site_item(ctx, site_id, "networks", f"{network_id}/references")
+
     @mcp.tool(annotations=READ_ONLY, tags={"read", "wifi"})
     async def list_wifi_broadcasts(
         ctx: Context,
@@ -188,12 +198,71 @@ def build_server(
         """List the Wi-Fi networks (SSIDs) of a site."""
         return await site_page(ctx, site_id, "wifi/broadcasts", offset, limit, filter)
 
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "wifi"})
+    async def get_wifi_broadcast(
+        ctx: Context, wifi_broadcast_id: str, site_id: SiteId = None
+    ) -> JSON:
+        """Get the full configuration of one Wi-Fi broadcast: network, security, bands, and devices."""
+        return await site_item(ctx, site_id, "wifi/broadcasts", wifi_broadcast_id)
+
     @mcp.tool(annotations=READ_ONLY, tags={"read", "networks"})
     async def list_wans(
         ctx: Context, site_id: SiteId = None, limit: Limit = 25, offset: Offset = 0
     ) -> JSON:
         """List the WAN interfaces of a site."""
         return await site_page(ctx, site_id, "wans", offset, limit)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "vpn"})
+    async def list_vpn_servers(
+        ctx: Context,
+        site_id: SiteId = None,
+        filter: Filter = None,
+        limit: Limit = 25,
+        offset: Offset = 0,
+    ) -> JSON:
+        """List the VPN servers of a site.
+
+        Filterable properties include type, id, name, enabled, and metadata.origin.
+        """
+        return await site_page(ctx, site_id, "vpn/servers", offset, limit, filter)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "vpn"})
+    async def list_site_to_site_tunnels(
+        ctx: Context,
+        site_id: SiteId = None,
+        filter: Filter = None,
+        limit: Limit = 25,
+        offset: Offset = 0,
+    ) -> JSON:
+        """List the site-to-site VPN tunnels of a site.
+
+        Filterable properties include type, id, name, metadata.origin, and metadata.source.
+        """
+        return await site_page(
+            ctx, site_id, "vpn/site-to-site-tunnels", offset, limit, filter
+        )
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "networks"})
+    async def list_radius_profiles(
+        ctx: Context,
+        site_id: SiteId = None,
+        filter: Filter = None,
+        limit: Limit = 25,
+        offset: Offset = 0,
+    ) -> JSON:
+        """List the RADIUS profiles of a site."""
+        return await site_page(ctx, site_id, "radius/profiles", offset, limit, filter)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "devices"})
+    async def list_device_tags(
+        ctx: Context,
+        site_id: SiteId = None,
+        filter: Filter = None,
+        limit: Limit = 25,
+        offset: Offset = 0,
+    ) -> JSON:
+        """List the device tags of a site. Wi-Fi broadcasts can use a tag to select their devices."""
+        return await site_page(ctx, site_id, "device-tags", offset, limit, filter)
 
     @mcp.tool(annotations=READ_ONLY, tags={"read", "firewall"})
     async def list_firewall_zones(
