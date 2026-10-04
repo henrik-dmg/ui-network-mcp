@@ -56,7 +56,7 @@ def api():
 async def test_tools_are_read_only():
     async with Client(make_server()) as client:
         tools = await client.list_tools()
-    assert len(tools) == 34
+    assert len(tools) == 42
     assert all(tool.annotations.read_only_hint for tool in tools)
 
 

@@ -23,6 +23,10 @@ All tools are read-only at this time.
 | `list_site_to_site_tunnels` | `GET /v1/sites/{siteId}/vpn/site-to-site-tunnels` |
 | `list_radius_profiles` | `GET /v1/sites/{siteId}/radius/profiles` |
 | `list_device_tags` | `GET /v1/sites/{siteId}/device-tags` |
+| `list_lags`, `get_lag` | `GET /v1/sites/{siteId}/switching/lags[/{lagId}]` |
+| `list_mc_lag_domains`, `get_mc_lag_domain` | `GET /v1/sites/{siteId}/switching/mc-lag-domains[/{mcLagDomainId}]` |
+| `list_switch_stacks`, `get_switch_stack` | `GET /v1/sites/{siteId}/switching/switch-stacks[/{switchStackId}]` |
+| `list_vouchers`, `get_voucher` | `GET /v1/sites/{siteId}/hotspot/vouchers[/{voucherId}]` |
 | `list_firewall_zones`, `get_firewall_zone` | `GET /v1/sites/{siteId}/firewall/zones[/{firewallZoneId}]` |
 | `list_firewall_policies`, `get_firewall_policy` | `GET /v1/sites/{siteId}/firewall/policies[/{firewallPolicyId}]` |
 | `get_firewall_policy_ordering` | `GET /v1/sites/{siteId}/firewall/policies/ordering` |
