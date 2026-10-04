@@ -32,6 +32,8 @@ class Settings(BaseSettings):
     verify_tls: bool = True
     timeout: float = 30.0
     default_site_id: str | None = None
+    # The server adds the tools that change the network only if this value is true.
+    allow_writes: bool = False
 
     @model_validator(mode="after")
     def _check_target(self) -> Self:

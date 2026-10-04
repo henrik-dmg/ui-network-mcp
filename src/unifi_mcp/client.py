@@ -59,13 +59,22 @@ class UniFiClient:
         params = {
             key: value for key, value in (params or {}).items() if value is not None
         }
+        return await self._request("GET", path, params=params)
+
+    async def post(self, path: str, body: JSON) -> Any:
+        """Send a POST request. The body does not include keys with a None value."""
+        body = {key: value for key, value in body.items() if value is not None}
+        return await self._request("POST", path, json=body)
+
+    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         try:
-            response = await self._http.get(path, params=params)
+            response = await self._http.request(method, path, **kwargs)
         except httpx.HTTPError as error:
             raise UniFiAPIError(0, f"Request to {path} failed: {error}") from error
         if response.is_error:
             raise _error_from_response(response)
-        return response.json()
+        # Some action endpoints return an empty body.
+        return response.json() if response.content else {}
 
     async def get_page(
         self, path: str, *, offset: int = 0, limit: int = 25, filter: str | None = None
