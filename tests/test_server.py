@@ -56,7 +56,7 @@ def api():
 async def test_tools_are_read_only():
     async with Client(make_server()) as client:
         tools = await client.list_tools()
-    assert len(tools) == 25
+    assert len(tools) == 26
     assert all(tool.annotations.read_only_hint for tool in tools)
 
 
@@ -170,3 +170,63 @@ async def test_firewall_policy_ordering_sends_the_zone_pair(api):
     params = route.calls.last.request.url.params
     assert params["sourceFirewallZoneId"] == "z1"
     assert params["destinationFirewallZoneId"] == "z2"
+
+
+async def test_firewall_overview_groups_policies_and_adds_names(api):
+    zones = [
+        {"id": "z-lan", "name": "Internal", "networkIds": ["n1"]},
+        {"id": "z-wan", "name": "External", "networkIds": []},
+    ]
+    policies = [
+        {
+            "id": "p2",
+            "name": "Allow DNS",
+            "index": 20,
+            "action": {"type": "ALLOW"},
+            "source": {"zoneId": "z-lan"},
+            "destination": {"zoneId": "z-wan"},
+        },
+        {
+            "id": "p1",
+            "name": "Block games",
+            "index": 10,
+            "action": {"type": "BLOCK"},
+            "source": {
+                "zoneId": "z-lan",
+                "trafficFilter": {
+                    "type": "NETWORK",
+                    "networkFilter": {"matchOpposite": False, "networkIds": ["n1"]},
+                },
+            },
+            "destination": {
+                "zoneId": "z-wan",
+                "trafficFilter": {
+                    "type": "APPLICATION",
+                    "applicationFilter": {"applicationIds": [7]},
+                },
+            },
+        },
+    ]
+    api.get(f"/v1/sites/{SITE}/firewall/zones").respond(json=page(zones))
+    api.get(f"/v1/sites/{SITE}/firewall/policies").respond(json=page(policies))
+    api.get(f"/v1/sites/{SITE}/networks").respond(
+        json=page([{"id": "n1", "name": "Home"}])
+    )
+    for path in ["traffic-matching-lists", "vpn/servers", "vpn/site-to-site-tunnels"]:
+        api.get(f"/v1/sites/{SITE}/{path}").respond(json=page([]))
+    api.get("/v1/dpi/applications").respond(json=page([{"id": 7, "name": "Steam"}]))
+    categories = api.get("/v1/dpi/categories")
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+        overview = (await client.call_tool("get_firewall_overview")).data
+
+    assert not categories.called
+    assert overview["zones"][0]["networks"] == ["Home"]
+    [pair] = overview["zonePairs"]
+    assert (pair["sourceZone"], pair["destinationZone"]) == ("Internal", "External")
+    first, second = pair["policies"]
+    assert (first["id"], second["id"]) == ("p1", "p2")
+    assert first["sourceFilter"]["networkFilter"]["networkNames"] == ["Home"]
+    assert first["destinationFilter"]["applicationFilter"]["applicationNames"] == [
+        "Steam"
+    ]

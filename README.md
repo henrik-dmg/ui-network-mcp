@@ -26,6 +26,7 @@ All tools are read-only at this time.
 | `list_dns_policies`, `get_dns_policy` | `GET /v1/sites/{siteId}/dns/policies[/{dnsPolicyId}]` |
 | `list_traffic_matching_lists`, `get_traffic_matching_list` | `GET /v1/sites/{siteId}/traffic-matching-lists[/{trafficMatchingListId}]` |
 | `get_topology` | Devices, device details, and clients, combined into one device tree |
+| `get_firewall_overview` | Firewall zones and policies, grouped by zone pair, with the names of the referenced resources |
 
 If a tool call does not include `site_id`, the server uses `UNIFI_DEFAULT_SITE_ID`.
 If that variable is not set and the console has exactly one site, the server uses that site.
