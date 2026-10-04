@@ -32,6 +32,8 @@ All tools are read-only at this time.
 | `list_traffic_matching_lists`, `get_traffic_matching_list` | `GET /v1/sites/{siteId}/traffic-matching-lists[/{trafficMatchingListId}]` |
 | `get_topology` | Devices, device details, and clients, combined into one device tree |
 | `get_firewall_overview` | Firewall zones and policies, grouped by zone pair, with the names of the referenced resources |
+| `get_site_health` | Devices, clients, pending devices, and WAN interfaces, combined into one health summary with a list of issues |
+| `get_device_health` | The latest statistics of all devices, with the device that needs most attention first |
 
 If a tool call does not include `site_id`, the server uses `UNIFI_DEFAULT_SITE_ID`.
 If that variable is not set and the console has exactly one site, the server uses that site.

@@ -17,6 +17,8 @@ Tools for the UniFi Network API of one UniFi console.
 Most tools operate on one site. If you omit site_id, the server uses the configured default site,
 or the only site when the console has exactly one. Call list_sites to find site IDs.
 Call get_topology first for an overview of how the devices of a site connect.
+Call get_site_health for a quick status, and get_firewall_overview to explain what traffic
+the firewall allows or blocks.
 """
 
 FILTER_HELP = (
@@ -452,6 +454,43 @@ def build_server(
         }
         return build_firewall_overview(site, zones, policies, names)
 
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "health"})
+    async def get_site_health(ctx: Context, site_id: SiteId = None) -> JSON:
+        """Get a health summary of a site. Use it to answer "is everything OK?".
+
+        The summary has a list of issues, the devices by state, the devices that are not online,
+        the available firmware updates, models with different firmware versions, the devices that
+        wait for adoption, the WAN interfaces, and the clients by type.
+        """
+        site = await resolve_site(ctx, site_id)
+        client = client_of(ctx)
+        devices, clients, pending, wans = await asyncio.gather(
+            client.get_all(f"/v1/sites/{site}/devices"),
+            client.get_all(f"/v1/sites/{site}/clients"),
+            client.get_all("/v1/pending-devices"),
+            client.get_all(f"/v1/sites/{site}/wans"),
+        )
+        return build_site_health(site, devices, clients, pending, wans)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "health", "devices"})
+    async def get_device_health(ctx: Context, site_id: SiteId = None) -> JSON:
+        """Get the latest statistics of all devices of a site, with the device that needs most attention first.
+
+        The devices that are not online come first. The other devices follow, sorted by their
+        highest CPU or memory use. Each device shows uptime, CPU, memory, load, and uplink rates.
+        """
+        site = await resolve_site(ctx, site_id)
+        client = client_of(ctx)
+        devices = await client.get_all(f"/v1/sites/{site}/devices")
+        statistics = await client.gather_limited(
+            [
+                f"/v1/sites/{site}/devices/{device['id']}/statistics/latest"
+                for device in devices
+            ],
+            return_errors=True,
+        )
+        return build_device_health(site, devices, statistics)
+
     return mcp
 
 
@@ -573,6 +612,124 @@ def build_firewall_overview(
             }
             for source_id, destination_id in sorted(pairs, key=pair_order)
         ],
+    }
+
+
+def device_summary(device: JSON, *keys: str) -> JSON:
+    """Return the ID, the name, the model, and the given keys of a device."""
+    return {key: device.get(key) for key in ("id", "name", "model", *keys)}
+
+
+def build_site_health(
+    site_id: str,
+    devices: list[JSON],
+    clients: list[JSON],
+    pending: list[JSON],
+    wans: list[JSON],
+) -> JSON:
+    """Summarize the state of the devices and clients of a site, and list the issues."""
+    not_online = [
+        device_summary(device, "state", "ipAddress")
+        for device in devices
+        if device.get("state") != "ONLINE"
+    ]
+    updatable = [
+        device_summary(device, "firmwareVersion")
+        for device in devices
+        if device.get("firmwareUpdatable")
+    ]
+    versions: dict[str, Counter[str]] = {}
+    for device in devices:
+        if device.get("model") and device.get("firmwareVersion"):
+            versions.setdefault(device["model"], Counter())[
+                device["firmwareVersion"]
+            ] += 1
+    mismatches = {
+        model: dict(counts) for model, counts in versions.items() if len(counts) > 1
+    }
+    # The list of pending devices is for the full console. A device with no target site
+    # can go to any site.
+    site_pending = [
+        {key: device.get(key) for key in ("macAddress", "model", "ipAddress", "state")}
+        for device in pending
+        if site_id in device.get("adoptionTargetSiteIds", [site_id])
+    ]
+
+    issues = []
+    if not_online:
+        issues.append(f"{len(not_online)} device(s) are not online.")
+    if updatable:
+        issues.append(f"{len(updatable)} device(s) have a firmware update.")
+    if mismatches:
+        issues.append(
+            f"{len(mismatches)} model(s) have different firmware versions: "
+            + ", ".join(sorted(mismatches))
+            + "."
+        )
+    if site_pending:
+        issues.append(f"{len(site_pending)} device(s) wait for adoption.")
+
+    return {
+        "siteId": site_id,
+        "issues": issues,
+        "devices": {
+            "total": len(devices),
+            "byState": dict(Counter(device.get("state") for device in devices)),
+            "notOnline": not_online,
+            "firmwareUpdatable": updatable,
+            "firmwareVersionMismatches": mismatches,
+        },
+        "pendingAdoption": site_pending,
+        "wans": [wan.get("name") for wan in wans],
+        "clients": {
+            "total": len(clients),
+            "byType": dict(Counter(client.get("type") for client in clients)),
+        },
+    }
+
+
+def build_device_health(
+    site_id: str, devices: list[JSON], statistics: list[JSON | Exception]
+) -> JSON:
+    """Combine each device with its statistics, and sort the devices that need attention first."""
+    rows = []
+    for device, stats in zip(devices, statistics, strict=True):
+        row = device_summary(device, "state")
+        if isinstance(stats, Exception):
+            row["statisticsError"] = str(stats)
+        else:
+            row.update(
+                {
+                    key: stats.get(key)
+                    for key in (
+                        "uptimeSec",
+                        "cpuUtilizationPct",
+                        "memoryUtilizationPct",
+                        "loadAverage1Min",
+                        "loadAverage5Min",
+                        "loadAverage15Min",
+                        "lastHeartbeatAt",
+                    )
+                }
+            )
+            uplink = stats.get("uplink") or {}
+            row["uplinkRxRateBps"] = uplink.get("rxRateBps")
+            row["uplinkTxRateBps"] = uplink.get("txRateBps")
+            radios = (stats.get("interfaces") or {}).get("radios")
+            if radios:
+                row["radios"] = radios
+        rows.append({key: value for key, value in row.items() if value is not None})
+
+    def attention(row: JSON) -> tuple[bool, float]:
+        usage = max(
+            row.get("cpuUtilizationPct") or 0, row.get("memoryUtilizationPct") or 0
+        )
+        return (row.get("state") == "ONLINE", -usage)
+
+    return {
+        "siteId": site_id,
+        "deviceCount": len(devices),
+        "devices": sorted(rows, key=attention),
     }
 
 

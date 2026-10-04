@@ -86,13 +86,23 @@ class UniFiClient:
             if not data or len(items) >= page.get("totalCount", 0):
                 return items
 
-    async def gather_limited(self, paths: list[str], concurrency: int = 8) -> list[Any]:
-        """Get many single resources, with a limit on the number of parallel requests."""
+    async def gather_limited(
+        self, paths: list[str], concurrency: int = 8, return_errors: bool = False
+    ) -> list[Any]:
+        """Get many single resources, with a limit on the number of parallel requests.
+
+        If return_errors is true, the result has a UniFiAPIError in place of each failed request.
+        """
         semaphore = asyncio.Semaphore(concurrency)
 
         async def fetch(path: str) -> Any:
             async with semaphore:
-                return await self.get(path)
+                try:
+                    return await self.get(path)
+                except UniFiAPIError as error:
+                    if return_errors:
+                        return error
+                    raise
 
         return await asyncio.gather(*(fetch(path) for path in paths))
 

@@ -56,7 +56,7 @@ def api():
 async def test_tools_are_read_only():
     async with Client(make_server()) as client:
         tools = await client.list_tools()
-    assert len(tools) == 32
+    assert len(tools) == 34
     assert all(tool.annotations.read_only_hint for tool in tools)
 
 
@@ -240,3 +240,61 @@ async def test_network_references_use_the_references_path(api):
         result = await client.call_tool("get_network_references", {"network_id": "n1"})
     assert route.called
     assert result.data == {"referenceResources": []}
+
+
+async def test_site_health_lists_the_issues(api):
+    devices = [
+        {**device(GATEWAY, "Gateway"), "firmwareVersion": "1.0"},
+        {
+            **device(SWITCH, "Switch 1"),
+            "firmwareVersion": "2.0",
+            "firmwareUpdatable": True,
+        },
+        {**device(AP, "Switch 2"), "firmwareVersion": "2.1", "state": "OFFLINE"},
+    ]
+    devices[0]["model"] = "UDM"
+    pending = [
+        {"macAddress": "p1", "adoptionTargetSiteIds": [SITE]},
+        {"macAddress": "p2", "adoptionTargetSiteIds": ["other"]},
+    ]
+    api.get(f"/v1/sites/{SITE}/devices").respond(json=page(devices))
+    api.get(f"/v1/sites/{SITE}/clients").respond(
+        json=page([{"type": "WIRED"}, {"type": "WIRELESS"}, {"type": "WIRELESS"}])
+    )
+    api.get("/v1/pending-devices").respond(json=page(pending))
+    api.get(f"/v1/sites/{SITE}/wans").respond(json=page([{"id": "w", "name": "WAN"}]))
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+        health = (await client.call_tool("get_site_health")).data
+
+    assert len(health["issues"]) == 4
+    assert health["devices"]["byState"] == {"ONLINE": 2, "OFFLINE": 1}
+    assert [d["name"] for d in health["devices"]["notOnline"]] == ["Switch 2"]
+    assert health["devices"]["firmwareVersionMismatches"] == {"M": {"2.0": 1, "2.1": 1}}
+    assert [d["macAddress"] for d in health["pendingAdoption"]] == ["p1"]
+    assert health["clients"]["byType"] == {"WIRED": 1, "WIRELESS": 2}
+
+
+async def test_device_health_sorts_and_keeps_failed_devices(api):
+    devices = [
+        device(GATEWAY, "Gateway"),
+        device(SWITCH, "Switch"),
+        {**device(AP, "AP"), "state": "OFFLINE"},
+    ]
+    api.get(f"/v1/sites/{SITE}/devices").respond(json=page(devices))
+    stats = f"/v1/sites/{SITE}/devices/{{}}/statistics/latest"
+    api.get(stats.format(GATEWAY)).respond(
+        json={"cpuUtilizationPct": 10, "memoryUtilizationPct": 20}
+    )
+    api.get(stats.format(SWITCH)).respond(
+        json={"cpuUtilizationPct": 90, "uplink": {"rxRateBps": 5}}
+    )
+    api.get(stats.format(AP)).respond(404, json={"message": "Device is offline"})
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+        health = (await client.call_tool("get_device_health")).data
+
+    ap, switch, gateway = health["devices"]
+    assert (ap["name"], switch["name"], gateway["name"]) == ("AP", "Switch", "Gateway")
+    assert "Device is offline" in ap["statisticsError"]
+    assert switch["uplinkRxRateBps"] == 5
