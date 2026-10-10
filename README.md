@@ -44,18 +44,63 @@ If that variable is not set and the console has exactly one site, the server use
 
 ## Configuration
 
-1. Create an API key in UniFi Network, in **Settings > Control Plane > Integrations**.
-2. Copy `.env.example` to `.env`.
-3. Set `UNIFI_API_KEY` and one of `UNIFI_HOST`, `UNIFI_CONSOLE_ID`, or `UNIFI_BASE_URL`.
+Create an API key in UniFi Network, in **Settings > Control Plane > Integrations**.
+The server reads its settings from these environment variables:
+
+| Variable | Description |
+|-|-|
+| `UNIFI_API_KEY` | Required. The API key. |
+| `UNIFI_HOST` | The IP address or hostname of a local console. |
+| `UNIFI_CONSOLE_ID` | The console ID from unifi.ui.com. The server then uses the cloud connector. |
+| `UNIFI_BASE_URL` | Any other URL that ends in `/proxy/network/integration`. |
+| `UNIFI_VERIFY_TLS` | Optional, default `true`. Local consoles usually use a self-signed certificate. Set this to `false` only on a network that you trust. |
+| `UNIFI_TIMEOUT` | Optional, default `30`. The request timeout in seconds. |
+| `UNIFI_DEFAULT_SITE_ID` | Optional. The site to use when a tool call does not include `site_id`. |
+
+Set exactly one of `UNIFI_HOST`, `UNIFI_CONSOLE_ID`, or `UNIFI_BASE_URL`.
 
 ## Add the server to Claude Code
 
+You do not have to clone the repository. `uvx` installs the server from GitHub and starts it:
+
 ```sh
-claude mcp add unifi -- uv run --project /path/to/unifi-mcp unifi-mcp
+claude mcp add unifi \
+  -e UNIFI_API_KEY=your-api-key \
+  -e UNIFI_HOST=192.168.1.1 \
+  -- uvx --from git+https://github.com/henrik-dmg/unifi-mcp unifi-mcp
 ```
 
-The server reads the `.env` file in the project folder, then the `.env` file in its working directory.
-A value in the environment replaces a value from a `.env` file.
+For Claude Desktop and other MCP hosts, add this entry to the MCP configuration file:
+
+```json
+{
+  "mcpServers": {
+    "unifi": {
+      "command": "uvx",
+      "args": ["--from", "git+https://github.com/henrik-dmg/unifi-mcp", "unifi-mcp"],
+      "env": {
+        "UNIFI_API_KEY": "your-api-key",
+        "UNIFI_HOST": "192.168.1.1"
+      }
+    }
+  }
+}
+```
+
+To get a new version of the server, run `uvx --refresh --from git+https://github.com/henrik-dmg/unifi-mcp unifi-mcp` one time.
+
+### Run from a clone
+
+To use a local clone, give its path to `uv run --project`:
+
+```sh
+claude mcp add unifi \
+  -e UNIFI_API_KEY=your-api-key \
+  -e UNIFI_HOST=192.168.1.1 \
+  -- uv run --project /path/to/unifi-mcp unifi-mcp
+```
+
+`uv run` installs the clone in editable mode. Thus the server uses your changes to the code when it starts again, and you do not have to reinstall it.
 
 ## Development
 
