@@ -34,10 +34,19 @@ All tools are read-only at this time.
 | `get_acl_rule_ordering` | `GET /v1/sites/{siteId}/acl-rules/ordering` |
 | `list_dns_policies`, `get_dns_policy` | `GET /v1/sites/{siteId}/dns/policies[/{dnsPolicyId}]` |
 | `list_traffic_matching_lists`, `get_traffic_matching_list` | `GET /v1/sites/{siteId}/traffic-matching-lists[/{trafficMatchingListId}]` |
+| `list_dpi_applications` | `GET /v1/dpi/applications` |
+| `list_dpi_categories` | `GET /v1/dpi/categories` |
 | `get_topology` | Devices, device details, and clients, combined into one device tree |
 | `get_firewall_overview` | Firewall zones and policies, grouped by zone pair, with the names of the referenced resources |
 | `get_site_health` | Devices, clients, pending devices, and WAN interfaces, combined into one health summary with a list of issues |
 | `get_device_health` | The latest statistics of all devices, with the device that needs most attention first |
+| `get_wifi_overview` | WiFi broadcasts, the radios of each access point, and the wireless clients, with channel conflicts and radios with many retries |
+| `get_switch_port_report` | The ports of each device with ports: speed, PoE state, and wired clients, with slow ports and limited PoE power |
+| `get_network_map` | All networks by VLAN ID, with the subnet, the DHCP mode, the firewall zone, and the WiFi broadcasts of each network |
+| `get_client_summary` | The clients by type, by access type, and by uplink device, and the newest clients |
+| `find_client` | The clients whose name, IP address, or MAC address contains a search text |
+| `get_voucher_summary` | The Hotspot vouchers by status, the vouchers that expire soon, and the fully used vouchers, without the codes |
+| `find_unused_objects` | Unused traffic matching lists, networks, firewall zones, and device tags, and the disabled objects |
 
 If a tool call does not include `site_id`, the server uses `UNIFI_DEFAULT_SITE_ID`.
 If that variable is not set and the console has exactly one site, the server uses that site.

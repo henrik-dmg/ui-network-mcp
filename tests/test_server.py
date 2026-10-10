@@ -56,7 +56,7 @@ def api():
 async def test_tools_are_read_only():
     async with Client(make_server()) as client:
         tools = await client.list_tools()
-    assert len(tools) == 42
+    assert len(tools) == 51
     assert all(tool.annotations.read_only_hint for tool in tools)
 
 
@@ -298,3 +298,285 @@ async def test_device_health_sorts_and_keeps_failed_devices(api):
     assert (ap["name"], switch["name"], gateway["name"]) == ("AP", "Switch", "Gateway")
     assert "Device is offline" in ap["statisticsError"]
     assert switch["uplinkRxRateBps"] == 5
+
+
+async def test_dpi_applications_send_the_filter(api):
+    route = api.get("/v1/dpi/applications").respond(
+        json=page([{"id": 7, "name": "Steam"}])
+    )
+    async with Client(make_server()) as client:
+        result = await client.call_tool(
+            "list_dpi_applications", {"filter": "name.like('Ste*')"}
+        )
+    assert route.calls.last.request.url.params["filter"] == "name.like('Ste*')"
+    assert result.data["data"] == [{"id": 7, "name": "Steam"}]
+
+
+async def test_wifi_overview_finds_channel_conflicts(api):
+    ap2 = "aaaaaaaa-0000-0000-0000-000000000004"
+    devices = [
+        {**device(SWITCH, "Switch"), "interfaces": ["ports"]},
+        {**device(AP, "AP 1"), "interfaces": ["radios"]},
+        {**device(ap2, "AP 2"), "interfaces": ["ports", "radios"]},
+    ]
+    api.get(f"/v1/sites/{SITE}/devices").respond(json=page(devices))
+    for device_id, name, channel in [(AP, "AP 1", 6), (ap2, "AP 2", 6)]:
+        radios = [{"frequencyGHz": 2.4, "channel": channel, "channelWidthMHz": 20}]
+        api.get(f"/v1/sites/{SITE}/devices/{device_id}").respond(
+            json={**device(device_id, name), "interfaces": {"radios": radios}}
+        )
+    api.get(f"/v1/sites/{SITE}/devices/{AP}/statistics/latest").respond(
+        json={"interfaces": {"radios": [{"frequencyGHz": 2.4, "txRetriesPct": 30}]}}
+    )
+    api.get(f"/v1/sites/{SITE}/devices/{ap2}/statistics/latest").respond(
+        404, json={"message": "No statistics"}
+    )
+    broadcasts = [
+        {
+            "id": "w1",
+            "name": "Home",
+            "enabled": True,
+            "network": {"type": "NATIVE"},
+            "securityConfiguration": {"type": "WPA2_PERSONAL"},
+        },
+        {
+            "id": "w2",
+            "name": "IoT",
+            "enabled": False,
+            "network": {"type": "SPECIFIC", "networkId": "n2"},
+            "securityConfiguration": {"type": "WPA2_PERSONAL"},
+        },
+    ]
+    api.get(f"/v1/sites/{SITE}/wifi/broadcasts").respond(json=page(broadcasts))
+    api.get(f"/v1/sites/{SITE}/networks").respond(
+        json=page(
+            [
+                {"id": "n1", "name": "Default", "default": True},
+                {"id": "n2", "name": "Things"},
+            ]
+        )
+    )
+    api.get(f"/v1/sites/{SITE}/clients").respond(
+        json=page(
+            [
+                {"type": "WIRELESS", "uplinkDeviceId": AP},
+                {"type": "WIRELESS", "uplinkDeviceId": AP},
+                {"type": "WIRED", "uplinkDeviceId": SWITCH},
+            ]
+        )
+    )
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+        overview = (await client.call_tool("get_wifi_overview")).data
+
+    assert [b["network"] for b in overview["broadcasts"]] == ["Default", "Things"]
+    first, second = overview["accessPoints"]
+    assert (first["name"], first["wirelessClients"]) == ("AP 1", 2)
+    assert first["radios"][0]["txRetriesPct"] == 30
+    assert "No statistics" in second["statisticsError"]
+    assert overview["wirelessClientCount"] == 2
+    assert len(overview["issues"]) == 3
+    assert "channel 6" in overview["issues"][0]
+
+
+async def test_switch_port_report_lists_slow_ports(api):
+    devices = [
+        {**device(SWITCH, "Switch"), "interfaces": ["ports"]},
+        {**device(AP, "AP"), "interfaces": ["radios"]},
+    ]
+    api.get(f"/v1/sites/{SITE}/devices").respond(json=page(devices))
+    ports = [
+        {"idx": 1, "state": "UP", "speedMbps": 100, "maxSpeedMbps": 1000},
+        {
+            "idx": 2,
+            "state": "UP",
+            "speedMbps": 1000,
+            "maxSpeedMbps": 1000,
+            "poe": {"enabled": True, "state": "LIMITED", "standard": "802.3at"},
+        },
+        {"idx": 3, "state": "DOWN", "maxSpeedMbps": 1000},
+    ]
+    detail = api.get(f"/v1/sites/{SITE}/devices/{SWITCH}").respond(
+        json={**device(SWITCH, "Switch"), "interfaces": {"ports": ports}}
+    )
+    ap_detail = api.get(f"/v1/sites/{SITE}/devices/{AP}")
+    api.get(f"/v1/sites/{SITE}/clients").respond(
+        json=page([{"type": "WIRED", "uplinkDeviceId": SWITCH}])
+    )
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+        report = (await client.call_tool("get_switch_port_report")).data
+
+    assert detail.called and not ap_detail.called
+    [switch] = report["devices"]
+    assert switch["wiredClients"] == 1
+    assert switch["portsByState"] == {"UP": 2, "DOWN": 1}
+    assert switch["poePortsByState"] == {"LIMITED": 1}
+    assert [port["idx"] for port in switch["portsBelowMaxSpeed"]] == [1]
+    assert len(report["issues"]) == 2
+
+
+async def test_network_map_shows_zones_and_duplicate_vlans(api):
+    networks = [
+        {"id": "n1", "name": "Default", "vlanId": 1, "default": True},
+        {"id": "n2", "name": "IoT", "vlanId": 20},
+        {"id": "n3", "name": "Cameras", "vlanId": 20},
+    ]
+    api.get(f"/v1/sites/{SITE}/networks").respond(json=page(networks))
+    api.get(f"/v1/sites/{SITE}/networks/n1").respond(
+        json={
+            **networks[0],
+            "ipv4Configuration": {
+                "hostIpAddress": "192.168.1.1",
+                "prefixLength": 24,
+                "dhcpConfiguration": {"mode": "SERVER"},
+            },
+        }
+    )
+    api.get(f"/v1/sites/{SITE}/networks/n2").respond(json=networks[1])
+    api.get(f"/v1/sites/{SITE}/networks/n3").respond(json=networks[2])
+    api.get(f"/v1/sites/{SITE}/firewall/zones").respond(
+        json=page([{"id": "z1", "name": "Internal", "networkIds": ["n1"]}])
+    )
+    api.get(f"/v1/sites/{SITE}/wifi/broadcasts").respond(
+        json=page([{"id": "w1", "name": "Home", "network": {"type": "NATIVE"}}])
+    )
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+        network_map = (await client.call_tool("get_network_map")).data
+
+    default = network_map["networks"][0]
+    assert default["subnet"] == "192.168.1.1/24"
+    assert default["dhcp"] == "SERVER"
+    assert default["zone"] == "Internal"
+    assert default["wifiBroadcasts"] == ["Home"]
+    assert network_map["issues"] == [
+        "More than one network uses VLAN 20: IoT, Cameras."
+    ]
+
+
+async def test_client_summary_counts_by_uplink_device(api):
+    clients = [
+        {"id": "c1", "type": "WIRED", "uplinkDeviceId": SWITCH, "connectedAt": "1"},
+        {"id": "c2", "type": "WIRELESS", "uplinkDeviceId": AP, "connectedAt": "3"},
+        {"id": "c3", "type": "WIRELESS", "uplinkDeviceId": AP, "connectedAt": "2"},
+        {"id": "c4", "type": "VPN", "access": {"type": "DEFAULT"}},
+    ]
+    api.get(f"/v1/sites/{SITE}/clients").respond(json=page(clients))
+    api.get(f"/v1/sites/{SITE}/devices").respond(
+        json=page([device(SWITCH, "Switch"), device(AP, "AP")])
+    )
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+        summary = (await client.call_tool("get_client_summary")).data
+
+    assert summary["byType"] == {"WIRED": 1, "WIRELESS": 2, "VPN": 1}
+    assert summary["withoutUplinkDevice"] == 1
+    assert [row["name"] for row in summary["byUplinkDevice"]] == ["AP", "Switch"]
+    assert [row["id"] for row in summary["newest"]] == ["c2", "c3", "c1"]
+    assert summary["newest"][0]["uplinkDeviceName"] == "AP"
+
+
+async def test_find_client_matches_name_ip_and_mac(api):
+    clients = [
+        {"id": "c1", "name": "Office Laptop", "ipAddress": "10.0.0.5"},
+        {"id": "c2", "name": "Phone", "macAddress": "AA:BB:CC:00:11:22"},
+        {"id": "c3", "name": "TV", "ipAddress": "10.0.1.9", "uplinkDeviceId": AP},
+    ]
+    api.get(f"/v1/sites/{SITE}/clients").respond(json=page(clients))
+    api.get(f"/v1/sites/{SITE}/devices").respond(json=page([device(AP, "AP")]))
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+
+        async def ids(query):
+            result = (await client.call_tool("find_client", {"query": query})).data
+            return [row["id"] for row in result["clients"]]
+
+        assert await ids("laptop") == ["c1"]
+        assert await ids("aabb.cc00") == ["c2"]
+        assert await ids("10.0.1") == ["c3"]
+
+
+async def test_find_unused_objects(api):
+    resources = {
+        "networks": [
+            {"id": "n1", "name": "Default", "default": True},
+            {"id": "n2", "name": "Old", "enabled": False},
+            {"id": "n3", "name": "Used"},
+        ],
+        "firewall/zones": [
+            {
+                "id": "z1",
+                "name": "Empty",
+                "networkIds": [],
+                "metadata": {"origin": "USER_DEFINED"},
+            },
+            {
+                "id": "z2",
+                "name": "External",
+                "networkIds": [],
+                "metadata": {"origin": "SYSTEM_DEFINED"},
+            },
+        ],
+        "firewall/policies": [
+            {
+                "id": "p1",
+                "name": "Allow web",
+                "destination": {
+                    "trafficFilter": {"portFilter": {"trafficMatchingListId": "t1"}}
+                },
+            }
+        ],
+        "traffic-matching-lists": [
+            {"id": "t1", "name": "Web"},
+            {"id": "t2", "name": "Unused"},
+        ],
+        "device-tags": [{"id": "d1", "name": "Empty tag", "deviceIds": []}],
+        "wifi/broadcasts": [],
+        "acl-rules": [],
+        "dns/policies": [{"id": "s1", "domain": "old.lan", "enabled": False}],
+    }
+    for path, items in resources.items():
+        api.get(f"/v1/sites/{SITE}/{path}").respond(json=page(items))
+    references = f"/v1/sites/{SITE}/networks/{{}}/references"
+    api.get(references.format("n1")).respond(json={"referenceResources": []})
+    api.get(references.format("n2")).respond(json={"referenceResources": []})
+    api.get(references.format("n3")).respond(
+        json={"referenceResources": [{"resourceType": "CLIENT", "referenceCount": 2}]}
+    )
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+        audit = (await client.call_tool("find_unused_objects")).data
+
+    assert audit["unusedTrafficMatchingLists"] == [{"id": "t2", "name": "Unused"}]
+    assert [n["name"] for n in audit["networksWithoutReferences"]] == ["Old"]
+    assert audit["customZonesWithoutNetworks"] == [{"id": "z1", "name": "Empty"}]
+    assert audit["deviceTagsWithoutDevices"] == [{"id": "d1", "name": "Empty tag"}]
+    assert audit["disabled"] == {
+        "networks": [{"id": "n2", "name": "Old"}],
+        "dnsPolicies": [{"id": "s1", "name": "old.lan"}],
+    }
+
+
+async def test_voucher_summary_counts_and_hides_codes(api):
+    vouchers = [
+        {"id": "v1", "code": "111", "expired": True},
+        {
+            "id": "v2",
+            "code": "222",
+            "activatedAt": "2026-01-01T00:00:00Z",
+            "expiresAt": "2000-01-01T00:00:00Z",
+            "authorizedGuestCount": 1,
+            "authorizedGuestLimit": 1,
+        },
+        {"id": "v3", "code": "333", "expiresAt": "2999-01-01T00:00:00Z"},
+    ]
+    api.get(f"/v1/sites/{SITE}/hotspot/vouchers").respond(json=page(vouchers))
+
+    async with Client(make_server(default_site_id=SITE)) as client:
+        summary = (await client.call_tool("get_voucher_summary")).data
+
+    assert (summary["expired"], summary["active"], summary["unused"]) == (1, 1, 1)
+    assert [v["id"] for v in summary["expiringSoon"]] == ["v2"]
+    assert [v["id"] for v in summary["fullyUsed"]] == ["v2"]
+    assert "code" not in summary["fullyUsed"][0]

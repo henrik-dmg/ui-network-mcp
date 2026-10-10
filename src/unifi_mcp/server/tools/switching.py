@@ -1,10 +1,13 @@
 """Tools for the LAGs, the MC-LAG domains, and the switch stacks."""
 
+import asyncio
+
 from fastmcp import Context, FastMCP
 
 from unifi_mcp.client import JSON
+from unifi_mcp.reports import build_switch_ports
 from unifi_mcp.server.parameters import READ_ONLY, Filter, Limit, Offset, SiteId
-from unifi_mcp.server.sites import site_item, site_page
+from unifi_mcp.server.sites import client_of, resolve_site, site_item, site_page
 
 
 def register(mcp: FastMCP) -> None:
@@ -68,3 +71,30 @@ def register(mcp: FastMCP) -> None:
     ) -> JSON:
         """Get one switch stack: its member units and its LAGs."""
         return await site_item(ctx, site_id, "switching/switch-stacks", switch_stack_id)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "switching", "devices"})
+    async def get_switch_port_report(
+        ctx: Context, site_id: SiteId = None, device_id: str | None = None
+    ) -> JSON:
+        """Get the ports of each device of a site that has ports, or of one device.
+
+        Each device shows its wired client count, its ports by state, its PoE ports by state, and
+        each port with its speed, maximum speed, and PoE state. The issues list ports that run
+        below their maximum speed and ports with limited PoE power. A slow port can have a bad
+        cable, or a connected device that supports only a lower speed.
+        """
+        site = await resolve_site(ctx, site_id)
+        client = client_of(ctx)
+        devices, clients = await asyncio.gather(
+            client.get_all(f"/v1/sites/{site}/devices"),
+            client.get_all(f"/v1/sites/{site}/clients"),
+        )
+        ids = [
+            d["id"]
+            for d in devices
+            if "ports" in d.get("interfaces", []) and device_id in (None, d["id"])
+        ]
+        details = await client.gather_limited(
+            [f"/v1/sites/{site}/devices/{i}" for i in ids]
+        )
+        return build_switch_ports(site, details, clients)

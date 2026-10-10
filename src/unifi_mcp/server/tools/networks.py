@@ -1,10 +1,13 @@
 """Tools for the networks, the WAN interfaces, and the RADIUS profiles."""
 
+import asyncio
+
 from fastmcp import Context, FastMCP
 
 from unifi_mcp.client import JSON
+from unifi_mcp.reports import build_network_map
 from unifi_mcp.server.parameters import READ_ONLY, Filter, Limit, Offset, SiteId
-from unifi_mcp.server.sites import site_item, site_page
+from unifi_mcp.server.sites import client_of, resolve_site, site_item, site_page
 
 
 def register(mcp: FastMCP) -> None:
@@ -53,3 +56,22 @@ def register(mcp: FastMCP) -> None:
     ) -> JSON:
         """List the RADIUS profiles of a site."""
         return await site_page(ctx, site_id, "radius/profiles", offset, limit, filter)
+
+    @mcp.tool(annotations=READ_ONLY, tags={"read", "networks"})
+    async def get_network_map(ctx: Context, site_id: SiteId = None) -> JSON:
+        """Get all networks of a site, sorted by VLAN ID.
+
+        Each network shows its VLAN ID, its IPv4 subnet, its DHCP mode, its firewall zone, and the
+        WiFi broadcasts that use it. The issues list VLAN IDs that more than one network uses.
+        """
+        site = await resolve_site(ctx, site_id)
+        client = client_of(ctx)
+        networks, zones, broadcasts = await asyncio.gather(
+            client.get_all(f"/v1/sites/{site}/networks"),
+            client.get_all(f"/v1/sites/{site}/firewall/zones"),
+            client.get_all(f"/v1/sites/{site}/wifi/broadcasts"),
+        )
+        details = await client.gather_limited(
+            [f"/v1/sites/{site}/networks/{network['id']}" for network in networks]
+        )
+        return build_network_map(site, details, zones, broadcasts)

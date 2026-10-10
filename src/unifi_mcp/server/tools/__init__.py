@@ -4,10 +4,12 @@ from fastmcp import FastMCP
 
 from unifi_mcp.server.tools import (
     acl,
+    audit,
     clients,
     console,
     devices,
     dns,
+    dpi,
     firewall,
     health,
     hotspot,
@@ -28,11 +30,13 @@ def register_all(mcp: FastMCP) -> None:
         wifi,
         vpn,
         firewall,
+        dpi,
         acl,
         dns,
         switching,
         hotspot,
         topology,
         health,
+        audit,
     ):
         module.register(mcp)
