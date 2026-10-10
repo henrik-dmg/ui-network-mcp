@@ -14,6 +14,6 @@ def main() -> None:
             for e in error.errors()
         )
         sys.exit(
-            f"unifi-mcp: invalid configuration ({problems}). Set the UNIFI_* variables in .env or in the environment."
+            f"unifi-mcp: invalid configuration ({problems}). Set the UNIFI_* environment variables."
         )
     server.run()

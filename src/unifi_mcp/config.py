@@ -1,4 +1,3 @@
-from pathlib import Path
 from typing import Self
 
 from pydantic import SecretStr, model_validator
@@ -9,18 +8,11 @@ CLOUD_CONNECTOR_URL = (
 )
 LOCAL_CONSOLE_URL = "https://{host}/proxy/network/integration"
 
-# MCP hosts such as Claude Desktop do not start the server in the project folder.
-# Thus the server reads the .env file of the project, then the .env file of the
-# working directory. A value in the second file replaces a value in the first file.
-PROJECT_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
-
 
 class Settings(BaseSettings):
-    """Connection settings, read from UNIFI_* environment variables or a .env file."""
+    """Connection settings, read from the UNIFI_* environment variables."""
 
-    model_config = SettingsConfigDict(
-        env_prefix="UNIFI_", env_file=(PROJECT_ENV_FILE, ".env"), extra="ignore"
-    )
+    model_config = SettingsConfigDict(env_prefix="UNIFI_", extra="ignore")
 
     api_key: SecretStr
     # Set exactly one of these three. The host is the IP address or hostname of a local console.

@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 uv run pytest                                   # all tests
 uv run pytest tests/test_server.py::test_name   # one test
 uv run ruff check && uv run ruff format         # lint and format
-uv run unifi-mcp                                # start the server (stdio), needs a valid .env
+uv run unifi-mcp                                # start the server (stdio), needs the UNIFI_* variables
 ```
 
 ## Architecture
@@ -17,7 +17,7 @@ This project is a FastMCP server for the UniFi Network integration API, version 
 
 The package in `src/unifi_mcp/` has these layers. Each file holds one type or one group of related functions:
 
-- `config.py`: `Settings` (pydantic-settings) reads the `UNIFI_*` variables. The user must set exactly one of `UNIFI_HOST`, `UNIFI_CONSOLE_ID`, or `UNIFI_BASE_URL`. `resolved_base_url` makes the local-console URL or the cloud-connector URL from that value. The settings read the `.env` file of the project first, then the `.env` file of the working directory, because MCP hosts do not start the server in the project folder.
+- `config.py`: `Settings` (pydantic-settings) reads the `UNIFI_*` variables. The user must set exactly one of `UNIFI_HOST`, `UNIFI_CONSOLE_ID`, or `UNIFI_BASE_URL`. `resolved_base_url` makes the local-console URL or the cloud-connector URL from that value. The settings come only from the environment. The server does not read a `.env` file, because MCP hosts give the settings as environment variables.
 - `client/`: `UniFiClient` (`unifi_client.py`) is a thin wrapper around `httpx.AsyncClient`. It removes `None` query parameters. It changes all HTTP errors and transport errors into `UniFiAPIError` (`errors.py`), a subclass of `ToolError`, so that FastMCP sends the message to the MCP client. `get_all` follows the pagination (page size 200). `gather_limited` sends parallel requests with a semaphore. The package `__init__.py` exports `JSON`, `MAX_PAGE_SIZE`, `UniFiAPIError`, and `UniFiClient`.
 - `server/`: `app.py` has `build_server(client_factory, default_site_id)` and `create_server()`. The lifespan creates the client and puts it in `ctx.lifespan_context`. `create_server()` is the production entry point, and `main()` in `__init__.py` calls it. `parameters.py` has the shared parameter types and `READ_ONLY`. `sites.py` has `client_of`, `resolve_site`, `site_page`, and `site_item`.
 - `server/tools/`: one module for each tag. Each module has a `register(mcp)` function that defines its tools as closures. `tools/__init__.py` calls each `register` function in `register_all`.
