@@ -15,18 +15,21 @@ uv run unifi-mcp                                # start the server (stdio), need
 
 This project is a FastMCP server for the UniFi Network integration API, version 10.6.106. All tools are read-only. The full API specification is in `network_v10.6.106_openapi.json`. Search that file for an endpoint schema before you add a tool. Do not read the whole file, because it is large.
 
-The package in `src/unifi_mcp/` has three layers:
+The package in `src/unifi_mcp/` has these layers. Each file holds one type or one group of related functions:
 
 - `config.py`: `Settings` (pydantic-settings) reads the `UNIFI_*` variables. The user must set exactly one of `UNIFI_HOST`, `UNIFI_CONSOLE_ID`, or `UNIFI_BASE_URL`. `resolved_base_url` makes the local-console URL or the cloud-connector URL from that value. The settings read the `.env` file of the project first, then the `.env` file of the working directory, because MCP hosts do not start the server in the project folder.
-- `client.py`: `UniFiClient` is a thin wrapper around `httpx.AsyncClient`. It removes `None` query parameters. It changes all HTTP errors and transport errors into `UniFiAPIError`, a subclass of `ToolError`, so that FastMCP sends the message to the MCP client. `get_all` follows the pagination (page size 200). `gather_limited` sends parallel requests with a semaphore.
-- `server.py`: `build_server(client_factory, default_site_id)` defines all tools as closures inside the function. The lifespan creates the client and puts it in `ctx.lifespan_context`. `create_server()` is the production entry point, and `main()` in `__init__.py` calls it.
+- `client/`: `UniFiClient` (`unifi_client.py`) is a thin wrapper around `httpx.AsyncClient`. It removes `None` query parameters. It changes all HTTP errors and transport errors into `UniFiAPIError` (`errors.py`), a subclass of `ToolError`, so that FastMCP sends the message to the MCP client. `get_all` follows the pagination (page size 200). `gather_limited` sends parallel requests with a semaphore. The package `__init__.py` exports `JSON`, `MAX_PAGE_SIZE`, `UniFiAPIError`, and `UniFiClient`.
+- `server/`: `app.py` has `build_server(client_factory, default_site_id)` and `create_server()`. The lifespan creates the client and puts it in `ctx.lifespan_context`. `create_server()` is the production entry point, and `main()` in `__init__.py` calls it. `parameters.py` has the shared parameter types and `READ_ONLY`. `sites.py` has `client_of`, `resolve_site`, `site_page`, and `site_item`.
+- `server/tools/`: one module for each tag. Each module has a `register(mcp)` function that defines its tools as closures. `tools/__init__.py` calls each `register` function in `register_all`.
+- `reports/`: pure functions that make one summary from many API responses, for the combined tools. One file for each report.
 
-Patterns in `server.py` to follow when you add a tool:
+Patterns to follow when you add a tool:
 
+- Put the tool in the `server/tools/` module of its tag. For a new tag, add a module and add it to `register_all`.
 - Use the `SiteId`, `Filter`, `Limit`, and `Offset` annotated types for parameters.
 - Use the `site_page` and `site_item` helpers for site-scoped endpoints. They call `resolve_site`, which uses the given `site_id`, then the configured default, then the only site of the console. `resolve_site` keeps the result of the lookup in the lifespan context.
 - Give each tool `annotations=READ_ONLY` and a `tags` set.
-- `get_topology` is a combined tool. It reads all devices, the details of each device, and all clients. The pure function `build_topology` then makes the tree from the `uplink.deviceId` of each device.
+- `get_topology` is a combined tool. It reads all devices, the details of each device, and all clients. The pure function `build_topology` in `reports/topology.py` then makes the tree from the `uplink.deviceId` of each device.
 
 ## Tests
 
