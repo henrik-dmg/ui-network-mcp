@@ -30,6 +30,7 @@ Patterns to follow when you add a tool:
 - Use the `site_page` and `site_item` helpers for site-scoped endpoints. They call `resolve_site`, which uses the given `site_id`, then the configured default, then the only site of the console. `resolve_site` keeps the result of the lookup in the lifespan context.
 - Give each tool `annotations=READ_ONLY` and a `tags` set.
 - `get_topology` is a combined tool. It reads all devices, the details of each device, and all clients. The pure function `build_topology` in `reports/topology.py` then makes the tree from the `uplink.deviceId` of each device.
+- A combined tool reads only the data it needs. For example, `get_wifi_overview` and `get_switch_port_report` read the details only of the devices whose `interfaces` list includes `radios` or `ports`. A combined tool that reads statistics or references for each item uses `gather_limited(..., return_errors=True)`, so that one failed item does not stop the report.
 
 ## Tests
 
