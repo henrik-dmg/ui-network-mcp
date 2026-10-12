@@ -26,13 +26,13 @@ def build_network_map(
     ssids: dict[str | None, list[str]] = defaultdict(list)
     for broadcast in broadcasts:
         ssids[wifi_network_id(broadcast.get("network"), networks)].append(
-            broadcast.get("name")
+            broadcast["name"]
         )
 
     rows = []
     vlans: dict[int, list[str]] = defaultdict(list)
     for network in networks:
-        vlans[network.get("vlanId")].append(network.get("name"))
+        vlans[network["vlanId"]].append(network["name"])
         row = {
             "id": network["id"],
             "name": network.get("name"),
@@ -54,7 +54,7 @@ def build_network_map(
 
     issues = [
         f"More than one network uses VLAN {vlan_id}: {', '.join(names)}."
-        for vlan_id, names in sorted(vlans.items(), key=lambda item: item[0] or 0)
+        for vlan_id, names in sorted(vlans.items(), key=lambda item: item[0])
         if len(names) > 1
     ]
     return {

@@ -32,9 +32,9 @@ def build_client_summary(
     for client in clients:
         uplink = client.get("uplinkDeviceId")
         if uplink:
-            per_device.setdefault(uplink, Counter())[client.get("type")] += 1
+            per_device.setdefault(uplink, Counter())[client["type"]] += 1
 
-    uplinks = [
+    uplinks: list[JSON] = [
         {
             "deviceId": device_id,
             "name": (by_id.get(device_id) or {}).get("name"),
@@ -53,7 +53,7 @@ def build_client_summary(
     return {
         "siteId": site_id,
         "total": len(clients),
-        "byType": dict(Counter(client.get("type") for client in clients)),
+        "byType": dict(Counter(client["type"] for client in clients)),
         "byAccessType": dict(
             Counter((client.get("access") or {}).get("type") for client in clients)
         ),

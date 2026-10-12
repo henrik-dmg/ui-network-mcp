@@ -100,7 +100,7 @@ def build_wifi_overview(
                     f"{row['name']} has {radio['txRetriesPct']}% transmit retries "
                     f"on {radio.get('frequencyGHz')} GHz."
                 )
-    disabled = [b.get("name") for b in broadcasts if b.get("enabled") is False]
+    disabled = [b["name"] for b in broadcasts if b.get("enabled") is False]
     if disabled:
         issues.append(f"These WiFi broadcasts are disabled: {', '.join(disabled)}.")
 
