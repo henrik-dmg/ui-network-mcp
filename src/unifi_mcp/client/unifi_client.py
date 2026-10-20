@@ -33,15 +33,26 @@ class UniFiClient:
         await self._http.aclose()
 
     async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
-        params = {
-            key: value for key, value in (params or {}).items() if value is not None
-        }
-        return await self._request("GET", path, params=params)
+        return await self._request("GET", path, params=_without_none(params or {}))
 
     async def post(self, path: str, body: JSON) -> Any:
         """Send a POST request. The body does not include keys with a None value."""
-        body = {key: value for key, value in body.items() if value is not None}
-        return await self._request("POST", path, json=body)
+        return await self._request("POST", path, json=_without_none(body))
+
+    async def put(
+        self, path: str, body: JSON, params: dict[str, Any] | None = None
+    ) -> Any:
+        """Send a PUT request. The body does not include keys with a None value."""
+        return await self._request(
+            "PUT", path, json=_without_none(body), params=_without_none(params or {})
+        )
+
+    async def patch(self, path: str, body: JSON) -> Any:
+        """Send a PATCH request. The body does not include keys with a None value."""
+        return await self._request("PATCH", path, json=_without_none(body))
+
+    async def delete(self, path: str) -> Any:
+        return await self._request("DELETE", path)
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         try:
@@ -91,3 +102,7 @@ class UniFiClient:
                     raise
 
         return await asyncio.gather(*(fetch(path) for path in paths))
+
+
+def _without_none(values: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in values.items() if value is not None}

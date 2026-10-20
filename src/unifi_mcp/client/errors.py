@@ -11,6 +11,7 @@ class UniFiAPIError(ToolError):
         message: str,
         code: str | None = None,
         request_id: str | None = None,
+        hint: str | None = None,
     ):
         self.status_code = status_code
         self.code = code
@@ -21,6 +22,8 @@ class UniFiAPIError(ToolError):
         detail += f": {message}"
         if request_id:
             detail += f" [requestId={request_id}]"
+        if hint:
+            detail += f" {hint}"
         super().__init__(detail)
 
     @classmethod
@@ -32,6 +35,9 @@ class UniFiAPIError(ToolError):
             body = {}
         if not isinstance(body, dict):
             body = {}
+        hint = None
+        if response.status_code in (401, 403) and response.request.method != "GET":
+            hint = "Make sure that the API key has write access."
         return cls(
             status_code=response.status_code,
             message=body.get("message")
@@ -39,4 +45,5 @@ class UniFiAPIError(ToolError):
             or response.text[:200],
             code=body.get("code"),
             request_id=body.get("requestId"),
+            hint=hint,
         )
