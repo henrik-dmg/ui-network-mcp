@@ -5,7 +5,7 @@ The API specification is in `network_v10.6.106_openapi.json`.
 
 ## Tools
 
-All tools are read-only at this time.
+Most tools are read-only. The server adds the [write tools](#write-tools) only if `UNIFI_ALLOW_WRITES` is `true`.
 
 | Tool | Endpoint |
 |-|-|
@@ -51,6 +51,20 @@ All tools are read-only at this time.
 If a tool call does not include `site_id`, the server uses `UNIFI_DEFAULT_SITE_ID`.
 If that variable is not set and the console has exactly one site, the server uses that site.
 
+### Write tools
+
+| Tool | Endpoint |
+|-|-|
+| `create_firewall_policy` | `POST /v1/sites/{siteId}/firewall/policies` |
+| `update_firewall_policy` | `PATCH` or `GET` and `PUT /v1/sites/{siteId}/firewall/policies/{firewallPolicyId}` |
+| `delete_firewall_policy` | `DELETE /v1/sites/{siteId}/firewall/policies/{firewallPolicyId}` |
+| `reorder_firewall_policies` | `PUT /v1/sites/{siteId}/firewall/policies/ordering` |
+
+`update_firewall_policy` changes only the given fields. If the only change is `logging_enabled`, it sends a `PATCH` request. For all other changes, it reads the policy and sends the full policy with the changes.
+The server checks each policy body against typed models before it sends the request.
+
+Caution: Examine each write tool call before you approve it. A wrong firewall policy can block the access to the console.
+
 ## Configuration
 
 Create an API key in UniFi Network, in **Settings > Control Plane > Integrations**.
@@ -65,6 +79,7 @@ The server reads its settings from these environment variables:
 | `UNIFI_VERIFY_TLS` | Optional, default `true`. Local consoles usually use a self-signed certificate. Set this to `false` only on a network that you trust. |
 | `UNIFI_TIMEOUT` | Optional, default `30`. The request timeout in seconds. |
 | `UNIFI_DEFAULT_SITE_ID` | Optional. The site to use when a tool call does not include `site_id`. |
+| `UNIFI_ALLOW_WRITES` | Optional, default `false`. Set this to `true` to add the write tools. The API key must have write access. |
 
 Set exactly one of `UNIFI_HOST`, `UNIFI_CONSOLE_ID`, or `UNIFI_BASE_URL`.
 

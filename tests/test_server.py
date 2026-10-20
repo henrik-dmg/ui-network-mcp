@@ -1,3 +1,5 @@
+import json
+
 import httpx
 import pytest
 import respx
@@ -38,12 +40,13 @@ def device(device_id, name, uplink=None):
     return body
 
 
-def make_server(default_site_id=None):
+def make_server(default_site_id=None, allow_writes=False):
     return build_server(
         lambda: UniFiClient(
             httpx.AsyncClient(base_url=BASE, headers={"X-API-KEY": "key"})
         ),
         default_site_id,
+        allow_writes,
     )
 
 
@@ -580,3 +583,218 @@ async def test_voucher_summary_counts_and_hides_codes(api):
     assert [v["id"] for v in summary["expiringSoon"]] == ["v2"]
     assert [v["id"] for v in summary["fullyUsed"]] == ["v2"]
     assert "code" not in summary["fullyUsed"][0]
+
+
+POLICIES = f"/v1/sites/{SITE}/firewall/policies"
+WRITE_TOOLS = {
+    "create_firewall_policy",
+    "update_firewall_policy",
+    "delete_firewall_policy",
+    "reorder_firewall_policies",
+}
+
+
+def sent_json(route):
+    return json.loads(route.calls.last.request.content)
+
+
+async def test_write_tools_need_allow_writes():
+    async with Client(make_server(allow_writes=True)) as client:
+        tools = await client.list_tools()
+    writes = {tool.name for tool in tools if not tool.annotations.read_only_hint}
+    assert len(tools) == 55
+    assert writes == WRITE_TOOLS
+
+
+async def test_hidden_write_tools_cannot_be_called(api):
+    route = api.delete(f"{POLICIES}/p1")
+    async with Client(make_server(default_site_id=SITE)) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool(
+                "delete_firewall_policy", {"firewall_policy_id": "p1"}
+            )
+    assert not route.called
+
+
+async def test_create_firewall_policy_sends_the_api_body(api):
+    route = api.post(POLICIES).respond(201, json={"id": "p1"})
+    ports = {
+        "type": "PORTS",
+        "items": [
+            {"type": "PORT_NUMBER", "value": 53},
+            {"type": "PORT_NUMBER_RANGE", "start": 8000, "stop": 8080},
+        ],
+    }
+    schedule = {
+        "mode": "EVERY_WEEK",
+        "repeatOnDays": ["SATURDAY"],
+        "timeFilter": {"startTime": "22:00", "stopTime": "06:00"},
+    }
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        result = await client.call_tool(
+            "create_firewall_policy",
+            {
+                "name": "Block DNS",
+                "action": {"type": "REJECT"},
+                "source": {"zoneId": "z1"},
+                "destination": {
+                    "zoneId": "z2",
+                    "trafficFilter": {"type": "PORT", "portFilter": ports},
+                },
+                "schedule": schedule,
+            },
+        )
+
+    assert result.data == {"id": "p1"}
+    # The body includes the default values of the models.
+    sent_ports = ports | {"matchOpposite": False}
+    assert sent_json(route) == {
+        "name": "Block DNS",
+        "enabled": True,
+        "action": {"type": "REJECT"},
+        "source": {"zoneId": "z1"},
+        "destination": {
+            "zoneId": "z2",
+            "trafficFilter": {"type": "PORT", "portFilter": sent_ports},
+        },
+        "ipProtocolScope": {"ipVersion": "IPV4_AND_IPV6"},
+        "schedule": schedule,
+        "loggingEnabled": False,
+    }
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        # A MAC address filter is only for the source.
+        {"destination": {"zoneId": "z2", "trafficFilter": {"type": "MAC_ADDRESS"}}},
+        # ICMP is only for IPv4.
+        {
+            "ip_protocol_scope": {
+                "ipVersion": "IPV4_AND_IPV6",
+                "protocolFilter": {
+                    "type": "NAMED_PROTOCOL",
+                    "protocol": {"name": "ICMP"},
+                },
+            }
+        },
+        {"action": {"type": "ALLOW", "unknown": True}},
+    ],
+)
+async def test_create_firewall_policy_checks_the_body(api, change):
+    route = api.post(POLICIES)
+    arguments = {
+        "name": "Bad",
+        "action": {"type": "BLOCK"},
+        "source": {"zoneId": "z1"},
+        "destination": {"zoneId": "z2"},
+    }
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("create_firewall_policy", arguments | change)
+    assert not route.called
+
+
+async def test_update_of_only_the_logging_sends_a_patch(api):
+    route = api.patch(f"{POLICIES}/p1").respond(json={"id": "p1"})
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        await client.call_tool(
+            "update_firewall_policy",
+            {"firewall_policy_id": "p1", "logging_enabled": True},
+        )
+    assert sent_json(route) == {"loggingEnabled": True}
+
+
+async def test_update_merges_the_changes_into_the_policy(api):
+    policy = {
+        "name": "Guests",
+        "enabled": True,
+        "action": {"type": "BLOCK"},
+        "source": {"zoneId": "z1"},
+        "destination": {"zoneId": "z2"},
+        "ipProtocolScope": {"ipVersion": "IPV4"},
+        "schedule": {
+            "mode": "EVERY_DAY",
+            "timeFilter": {"startTime": "08:00", "stopTime": "18:00"},
+        },
+        "loggingEnabled": False,
+    }
+    response_only = {"id": "p1", "index": 10000, "metadata": {"origin": "USER_DEFINED"}}
+    api.get(f"{POLICIES}/p1").respond(json=policy | response_only)
+    route = api.put(f"{POLICIES}/p1").respond(json={"id": "p1"})
+
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        await client.call_tool(
+            "update_firewall_policy",
+            {
+                "firewall_policy_id": "p1",
+                "enabled": False,
+                "action": {"type": "ALLOW"},
+                "clear": ["schedule"],
+            },
+        )
+
+    del policy["schedule"]
+    assert sent_json(route) == policy | {
+        "enabled": False,
+        "action": {"type": "ALLOW", "allowReturnTraffic": True},
+    }
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        ({}, "at least one field"),
+        ({"clear": ["description"], "description": "x"}, "clear"),
+    ],
+)
+async def test_update_rejects_unclear_changes(api, arguments, message):
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        with pytest.raises(ToolError, match=message):
+            await client.call_tool(
+                "update_firewall_policy", {"firewall_policy_id": "p1"} | arguments
+            )
+
+
+async def test_delete_firewall_policy_returns_the_id(api):
+    route = api.delete(f"{POLICIES}/p1").respond(200)
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        result = await client.call_tool(
+            "delete_firewall_policy", {"firewall_policy_id": "p1"}
+        )
+    assert route.called
+    assert result.data == {"deletedFirewallPolicyId": "p1"}
+
+
+async def test_reorder_sends_the_zone_pair_and_the_order(api):
+    route = api.put(f"{POLICIES}/ordering").respond(json={})
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        await client.call_tool(
+            "reorder_firewall_policies",
+            {
+                "source_firewall_zone_id": "z1",
+                "destination_firewall_zone_id": "z2",
+                "before_system_defined": ["p2", "p1"],
+                "after_system_defined": [],
+            },
+        )
+    params = route.calls.last.request.url.params
+    assert (params["sourceFirewallZoneId"], params["destinationFirewallZoneId"]) == (
+        "z1",
+        "z2",
+    )
+    assert sent_json(route) == {
+        "orderedFirewallPolicyIds": {
+            "beforeSystemDefined": ["p2", "p1"],
+            "afterSystemDefined": [],
+        }
+    }
+
+
+async def test_rejected_writes_mention_the_api_key(api):
+    api.delete(f"{POLICIES}/p1").respond(403, json={"message": "Forbidden"})
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        with pytest.raises(ToolError, match="Forbidden.*write access"):
+            await client.call_tool(
+                "delete_firewall_policy", {"firewall_policy_id": "p1"}
+            )
