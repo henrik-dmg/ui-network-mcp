@@ -2,9 +2,11 @@ import asyncio
 from typing import Any
 
 import httpx
+from fastmcp.exceptions import ToolError
 
 from unifi_mcp.client.errors import UniFiAPIError
 from unifi_mcp.client.json_types import JSON
+from unifi_mcp.client.redaction import REDACTED, contains_redacted, redact
 from unifi_mcp.config import Settings
 
 MAX_PAGE_SIZE = 200
@@ -37,19 +39,19 @@ class UniFiClient:
 
     async def post(self, path: str, body: JSON) -> Any:
         """Send a POST request. The body does not include keys with a None value."""
-        return await self._request("POST", path, json=_without_none(body))
+        return await self._request("POST", path, json=_write_body(body))
 
     async def put(
         self, path: str, body: JSON, params: dict[str, Any] | None = None
     ) -> Any:
         """Send a PUT request. The body does not include keys with a None value."""
         return await self._request(
-            "PUT", path, json=_without_none(body), params=_without_none(params or {})
+            "PUT", path, json=_write_body(body), params=_without_none(params or {})
         )
 
     async def patch(self, path: str, body: JSON) -> Any:
         """Send a PATCH request. The body does not include keys with a None value."""
-        return await self._request("PATCH", path, json=_without_none(body))
+        return await self._request("PATCH", path, json=_write_body(body))
 
     async def delete(self, path: str, params: dict[str, Any] | None = None) -> Any:
         return await self._request("DELETE", path, params=_without_none(params or {}))
@@ -62,7 +64,7 @@ class UniFiClient:
         if response.is_error:
             raise UniFiAPIError.from_response(response)
         # Some action endpoints return an empty body.
-        return response.json() if response.content else {}
+        return redact(response.json()) if response.content else {}
 
     async def get_page(
         self, path: str, *, offset: int = 0, limit: int = 25, filter: str | None = None
@@ -106,3 +108,13 @@ class UniFiClient:
 
 def _without_none(values: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in values.items() if value is not None}
+
+
+def _write_body(body: JSON) -> JSON:
+    """Remove the None values. Refuse a body that would replace a secret with REDACTED."""
+    if contains_redacted(body):
+        raise ToolError(
+            f"The request body contains {REDACTED}. The server hides the secrets in its "
+            "results. Give the real value, or remove the field."
+        )
+    return _without_none(body)

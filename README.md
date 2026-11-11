@@ -16,6 +16,7 @@ The data about sirkirby/unifi-mcp is from November 2026.
 | Credentials | An API key, which can be read-only | The username and password of a local admin account without MFA. An API key alone gives only some read tools. |
 | Network tools | Almost all read endpoints of the integration API, and combined report tools | 210 tools, and many of them use endpoints that the integration API does not have |
 | Changes | Firewall policies, device and port actions, guest access, and Hotspot vouchers. The write tools are hidden until you set `UNIFI_ALLOW_WRITES` to `true`. | Most configuration areas. Each change shows a preview before the server applies it. |
+| Secrets | WiFi passphrases are redacted | WiFi passphrases, VPN keys, and other secrets are redacted |
 | Remote access | The UniFi cloud connector, with `UNIFI_CONSOLE_ID` | A Cloudflare Worker and a relay on the local network |
 | Size | One small Python package | A monorepo with MCP servers, a REST and GraphQL server, a relay, and plugins |
 
@@ -84,6 +85,9 @@ Most tools are read-only. The server adds the [write tools](#write-tools) only i
 If a tool call does not include `site_id`, the server uses `UNIFI_DEFAULT_SITE_ID`.
 If that variable is not set and the console has exactly one site, the server uses that site.
 
+The results do not show the WiFi passphrases. The server replaces each passphrase with `***REDACTED***`, so that the passphrases do not get to the agent.
+The server does not hide the voucher codes, because you must give these codes to the guests.
+
 ### Write tools
 
 | Tool | Endpoint |
@@ -103,6 +107,7 @@ If that variable is not set and the console has exactly one site, the server use
 
 `update_firewall_policy` changes only the given fields. If the only changes are `logging_enabled` or `report_flow_enabled`, it sends a `PATCH` request. For all other changes, it reads the policy and sends the full policy with the changes.
 The server checks each policy body against typed models before it sends the request.
+The server does not send a request body that contains `***REDACTED***`, because that body would replace a secret with the placeholder.
 
 Caution: Examine each write tool call before you approve it. A wrong firewall policy can block the access to the console. `remove_device` resets an online device to the factory settings.
 

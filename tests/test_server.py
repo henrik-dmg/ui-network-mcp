@@ -7,6 +7,7 @@ from fastmcp import Client
 from fastmcp.exceptions import ToolError
 
 from unifi_mcp.client import UniFiClient
+from unifi_mcp.client.redaction import REDACTED, redact
 from unifi_mcp.server import build_server
 
 BASE = "https://console.test/proxy/network/integration"
@@ -969,3 +970,39 @@ async def test_delete_vouchers_sends_the_filter(api):
         )
     assert route.calls.last.request.url.params["filter"] == "expired.eq(true)"
     assert result.data == {"vouchersDeleted": 3}
+
+
+async def test_wifi_passphrases_are_redacted(api):
+    broadcast = {
+        "id": "w1",
+        "name": "Home",
+        "securityConfiguration": {
+            "type": "WPA2_PERSONAL",
+            "passphrase": "correct horse",
+            "presharedKeys": [{"passphrase": "battery staple", "network": {}}],
+        },
+    }
+    api.get(f"/v1/sites/{SITE}/wifi/broadcasts/w1").respond(json=broadcast)
+    async with Client(make_server(SITE)) as client:
+        result = await client.call_tool(
+            "get_wifi_broadcast", {"wifi_broadcast_id": "w1"}
+        )
+    security = result.data["securityConfiguration"]
+    assert security["passphrase"] == REDACTED
+    assert security["presharedKeys"][0]["passphrase"] == REDACTED
+    assert "correct horse" not in result.content[0].text
+
+
+async def test_writes_refuse_the_redaction_placeholder(api):
+    route = api.post(VOUCHERS)
+    client = UniFiClient(httpx.AsyncClient(base_url=BASE))
+    with pytest.raises(ToolError, match="REDACTED"):
+        await client.post(VOUCHERS, {"security": {"passphrase": REDACTED}})
+    assert not route.called
+
+
+def test_redact_keeps_empty_secrets_and_other_values():
+    assert redact({"passphrase": None, "items": [1, {"name": "a"}]}) == {
+        "passphrase": None,
+        "items": [1, {"name": "a"}],
+    }
