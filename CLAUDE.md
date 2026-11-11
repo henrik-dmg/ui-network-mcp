@@ -8,22 +8,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 uv run pytest                                   # all tests
 uv run pytest tests/test_server.py::test_name   # one test
 uv run ruff check && uv run ruff format         # lint and format
-uv run unifi-mcp                                # start the server (stdio), needs the UNIFI_* variables
+uv run ui-network-mcp                           # start the server (stdio), needs the UNIFI_* variables
 claude plugin validate .                        # check the plugin and the marketplace manifests
 claude --plugin-dir . plugin details unifi      # show the skills and their token cost
 ```
 
 ## Plugin
 
-The repository root is also a Claude Code plugin (`unifi`) and a marketplace (`unifi-mcp`), in `.claude-plugin/`. `plugin.json` declares the options (`userConfig`) and the MCP server. The MCP server is inline in `plugin.json`, because a `.mcp.json` at the root would also be a project MCP server for each person who opens this repository. The server starts with `uv run --project ${CLAUDE_PLUGIN_ROOT}`, so the server always has the same version as the skills. An unset option gives an empty environment variable, which `Settings` ignores.
+The repository root is also a Claude Code plugin (`unifi`) and a marketplace (`ui-network-mcp`), in `.claude-plugin/`. `plugin.json` declares the options (`userConfig`) and the MCP server. The MCP server is inline in `plugin.json`, because a `.mcp.json` at the root would also be a project MCP server for each person who opens this repository. The server starts with `uv run --project ${CLAUDE_PLUGIN_ROOT}`, so the server always has the same version as the skills. An unset option gives an empty environment variable, which `Settings` ignores.
 
-The skills in `skills/` name the tools and the fields of the tool results. When you rename a tool or a result field, update the skills. Keep the `version` in `plugin.json` equal to the version in `pyproject.toml`.
+The skills in `skills/` name the tools and the fields of the tool results. When you rename a tool or a result field, update the skills. Keep the `version` in `plugin.json` equal to the version in `pyproject.toml`. For a release, follow the "Release" section of `README.md`.
 
 ## Architecture
 
-This project is a FastMCP server for the UniFi Network integration API, version 11.0.97. Most tools are read-only. The write tools have the `write` tag, and `build_server` hides them unless `allow_writes` is true (`UNIFI_ALLOW_WRITES`). The full API specification is in `network_v11.0.97_openapi.json`. Search that file for an endpoint schema before you add a tool. Do not read the whole file, because it is large.
+This project is a FastMCP server for the UniFi Network integration API, version 11.0.97. Most tools are read-only. The write tools have the `write` tag, and `build_server` hides them unless `allow_writes` is true (`UNIFI_ALLOW_WRITES`). The full API specification is in `network_v11.0.97_openapi.json`. Git ignores that file, because Ubiquiti owns it. If the file is missing, download it from `https://developer.ui.com/network/v11.0.97/openapi.json` into the repository root. Search that file for an endpoint schema before you add a tool. Do not read the whole file, because it is large.
 
-The package in `src/unifi_mcp/` has these layers. Each file holds one type or one group of related functions:
+The package in `src/ui_network_mcp/` has these layers. Each file holds one type or one group of related functions:
 
 - `config.py`: `Settings` (pydantic-settings) reads the `UNIFI_*` variables. The user must set exactly one of `UNIFI_HOST`, `UNIFI_CONSOLE_ID`, or `UNIFI_BASE_URL`. `resolved_base_url` makes the local-console URL or the cloud-connector URL from that value. The settings come only from the environment. The server does not read a `.env` file, because MCP hosts give the settings as environment variables.
 - `client/`: `UniFiClient` (`unifi_client.py`) is a thin wrapper around `httpx.AsyncClient`. It removes `None` query parameters. It changes all HTTP errors and transport errors into `UniFiAPIError` (`errors.py`), a subclass of `ToolError`, so that FastMCP sends the message to the MCP client. `get_all` follows the pagination (page size 200). `gather_limited` sends parallel requests with a semaphore. `post`, `put`, and `patch` remove `None` keys from the body. The client replaces each secret in a response with `***REDACTED***` (`redaction.py`), and refuses a write body that contains this placeholder. A 401 or 403 error on a write request adds a hint about the write access of the API key. The package `__init__.py` exports `JSON`, `MAX_PAGE_SIZE`, `UniFiAPIError`, and `UniFiClient`.

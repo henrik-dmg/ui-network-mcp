@@ -1,7 +1,9 @@
-# unifi-mcp
+# ui-network-mcp
 
 An MCP server for the UniFi Network API (integration API, version 11.0.97). The server uses [FastMCP](https://gofastmcp.com).
-The API specification is in `network_v11.0.97_openapi.json`.
+The package on PyPI is [`ui-network-mcp`](https://pypi.org/project/ui-network-mcp/). Ubiquiti publishes the [API specification](https://developer.ui.com/network/v11.0.97/openapi.json).
+
+This is not an official Ubiquiti project.
 
 ## Comparison with sirkirby/unifi-mcp
 
@@ -135,18 +137,18 @@ The plugin adds the MCP server and four skills to Claude Code. The plugin needs 
 In Claude Code 2.1.275 or later, install the plugin with one command:
 
 ```text
-/plugin install unifi --marketplace henrik-dmg/unifi-mcp
+/plugin install unifi --marketplace henrik-dmg/ui-network-mcp
 ```
 
 In an earlier version, add the marketplace first, and then install the plugin:
 
 ```text
-/plugin marketplace add henrik-dmg/unifi-mcp
-/plugin install unifi@unifi-mcp
+/plugin marketplace add henrik-dmg/ui-network-mcp
+/plugin install unifi@ui-network-mcp
 ```
 
 Claude Code then asks for the plugin options. The options are the same as the [environment variables](#configuration): the API key, one of the console host, the console ID, or the base URL, and the optional settings. Claude Code keeps the API key in the system keychain.
-To change the options later, run `/plugin configure unifi@unifi-mcp`.
+To change the options later, run `/plugin configure unifi@ui-network-mcp`.
 
 If you added the server before with `claude mcp add unifi`, remove that server with `claude mcp remove unifi`. Otherwise Claude Code has each tool two times.
 
@@ -164,13 +166,13 @@ Claude also uses a skill when your question matches it, for example "Is my netwo
 ## Add the server to Claude Code
 
 If you do not want the plugin, you can add only the MCP server.
-You do not have to clone the repository. `uvx` installs the server from GitHub and starts it:
+You do not have to clone the repository. `uvx` installs the server from PyPI and starts it:
 
 ```sh
 claude mcp add unifi \
   -e UNIFI_API_KEY=your-api-key \
   -e UNIFI_HOST=192.168.1.1 \
-  -- uvx --from git+https://github.com/henrik-dmg/unifi-mcp unifi-mcp
+  -- uvx ui-network-mcp
 ```
 
 For Claude Desktop and other MCP hosts, add this entry to the MCP configuration file:
@@ -180,7 +182,7 @@ For Claude Desktop and other MCP hosts, add this entry to the MCP configuration 
   "mcpServers": {
     "unifi": {
       "command": "uvx",
-      "args": ["--from", "git+https://github.com/henrik-dmg/unifi-mcp", "unifi-mcp"],
+      "args": ["ui-network-mcp"],
       "env": {
         "UNIFI_API_KEY": "your-api-key",
         "UNIFI_HOST": "192.168.1.1"
@@ -190,7 +192,7 @@ For Claude Desktop and other MCP hosts, add this entry to the MCP configuration 
 }
 ```
 
-To get a new version of the server, run `uvx --refresh --from git+https://github.com/henrik-dmg/unifi-mcp unifi-mcp` one time.
+To get a new version of the server, run `uvx --refresh ui-network-mcp` one time.
 
 ### Run from a clone
 
@@ -200,14 +202,38 @@ To use a local clone, give its path to `uv run --project`:
 claude mcp add unifi \
   -e UNIFI_API_KEY=your-api-key \
   -e UNIFI_HOST=192.168.1.1 \
-  -- uv run --project /path/to/unifi-mcp unifi-mcp
+  -- uv run --project /path/to/ui-network-mcp ui-network-mcp
 ```
 
 `uv run` installs the clone in editable mode. Thus the server uses your changes to the code when it starts again, and you do not have to reinstall it.
 
 ## Development
 
+The project needs Python 3.14 and [uv](https://docs.astral.sh/uv/).
+
 ```sh
 uv run pytest
 uv run ruff check && uv run ruff format
 ```
+
+The API specification is not in the repository. Before you add a tool, download the specification into the repository root. Git ignores this file.
+
+```sh
+curl -o network_v11.0.97_openapi.json https://developer.ui.com/network/v11.0.97/openapi.json
+```
+
+The CI workflow runs the lint, the tests, the build, and the plugin checks for each push to `main` and each pull request.
+
+### Release
+
+1. Run `uv version <version>`, for example `uv version 0.2.0`. This command changes `pyproject.toml` and `uv.lock`.
+2. Set the same version in `.claude-plugin/plugin.json`.
+3. Commit the change and push it to `main`.
+4. Publish a GitHub release with the tag `v<version>`, for example `gh release create v0.2.0 --generate-notes`.
+
+The release workflow then builds the package and publishes it to PyPI.
+
+## License
+
+This project uses the MIT license. See [LICENSE](LICENSE).
+UniFi and Ubiquiti are trademarks of Ubiquiti Inc.
