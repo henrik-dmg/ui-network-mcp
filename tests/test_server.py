@@ -64,10 +64,10 @@ async def test_tools_are_read_only():
 
 
 async def test_sends_api_key_and_returns_info(api):
-    route = api.get("/v1/info").respond(json={"applicationVersion": "10.6.106"})
+    route = api.get("/v1/info").respond(json={"applicationVersion": "11.0.97"})
     async with Client(make_server()) as client:
         result = await client.call_tool("get_application_info")
-    assert result.data == {"applicationVersion": "10.6.106"}
+    assert result.data == {"applicationVersion": "11.0.97"}
     assert route.calls.last.request.headers["X-API-KEY"] == "key"
 
 
@@ -194,6 +194,7 @@ async def test_firewall_overview_groups_policies_and_adds_names(api):
             "name": "Block games",
             "index": 10,
             "action": {"type": "BLOCK"},
+            "reportFlowEnabled": False,
             "source": {
                 "zoneId": "z-lan",
                 "trafficFilter": {
@@ -229,6 +230,7 @@ async def test_firewall_overview_groups_policies_and_adds_names(api):
     assert (pair["sourceZone"], pair["destinationZone"]) == ("Internal", "External")
     first, second = pair["policies"]
     assert (first["id"], second["id"]) == ("p1", "p2")
+    assert first["reportFlowEnabled"] is False
     assert first["sourceFilter"]["networkFilter"]["networkNames"] == ["Home"]
     assert first["destinationFilter"]["applicationFilter"]["applicationNames"] == [
         "Steam"
@@ -324,7 +326,14 @@ async def test_wifi_overview_finds_channel_conflicts(api):
     ]
     api.get(f"/v1/sites/{SITE}/devices").respond(json=page(devices))
     for device_id, name, channel in [(AP, "AP 1", 6), (ap2, "AP 2", 6)]:
-        radios = [{"frequencyGHz": 2.4, "channel": channel, "channelWidthMHz": 20}]
+        radios = [
+            {
+                "frequencyGHz": 2.4,
+                "channel": channel,
+                "channelWidthMHz": 20,
+                "txPowerMode": "AUTO",
+            }
+        ]
         api.get(f"/v1/sites/{SITE}/devices/{device_id}").respond(
             json={**device(device_id, name), "interfaces": {"radios": radios}}
         )
@@ -376,6 +385,7 @@ async def test_wifi_overview_finds_channel_conflicts(api):
     first, second = overview["accessPoints"]
     assert (first["name"], first["wirelessClients"]) == ("AP 1", 2)
     assert first["radios"][0]["txRetriesPct"] == 30
+    assert first["radios"][0]["txPowerMode"] == "AUTO"
     assert "No statistics" in second["statisticsError"]
     assert overview["wirelessClientCount"] == 2
     assert len(overview["issues"]) == 3
@@ -660,6 +670,7 @@ async def test_create_firewall_policy_sends_the_api_body(api):
         "ipProtocolScope": {"ipVersion": "IPV4_AND_IPV6"},
         "schedule": schedule,
         "loggingEnabled": False,
+        "reportFlowEnabled": True,
     }
 
 
@@ -695,14 +706,24 @@ async def test_create_firewall_policy_checks_the_body(api, change):
     assert not route.called
 
 
-async def test_update_of_only_the_logging_sends_a_patch(api):
+@pytest.mark.parametrize(
+    ("arguments", "body"),
+    [
+        ({"logging_enabled": True}, {"loggingEnabled": True}),
+        ({"report_flow_enabled": False}, {"reportFlowEnabled": False}),
+        (
+            {"logging_enabled": True, "report_flow_enabled": False},
+            {"loggingEnabled": True, "reportFlowEnabled": False},
+        ),
+    ],
+)
+async def test_update_of_only_the_patch_fields_sends_a_patch(api, arguments, body):
     route = api.patch(f"{POLICIES}/p1").respond(json={"id": "p1"})
     async with Client(make_server(SITE, allow_writes=True)) as client:
         await client.call_tool(
-            "update_firewall_policy",
-            {"firewall_policy_id": "p1", "logging_enabled": True},
+            "update_firewall_policy", {"firewall_policy_id": "p1"} | arguments
         )
-    assert sent_json(route) == {"loggingEnabled": True}
+    assert sent_json(route) == body
 
 
 async def test_update_merges_the_changes_into_the_policy(api):
@@ -718,6 +739,7 @@ async def test_update_merges_the_changes_into_the_policy(api):
             "timeFilter": {"startTime": "08:00", "stopTime": "18:00"},
         },
         "loggingEnabled": False,
+        "reportFlowEnabled": True,
     }
     response_only = {"id": "p1", "index": 10000, "metadata": {"origin": "USER_DEFINED"}}
     api.get(f"{POLICIES}/p1").respond(json=policy | response_only)

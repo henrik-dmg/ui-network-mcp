@@ -75,6 +75,7 @@ def build_firewall_overview(
             "ipsecFilter": policy.get("ipsecFilter"),
             "schedule": policy.get("schedule"),
             "loggingEnabled": policy.get("loggingEnabled"),
+            "reportFlowEnabled": policy.get("reportFlowEnabled"),
             "sourceFilter": add_names(source.get("trafficFilter"), names),
             "destinationFilter": add_names(destination.get("trafficFilter"), names),
         }

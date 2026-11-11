@@ -51,7 +51,7 @@ def register(mcp: FastMCP) -> None:
     async def get_firewall_policy(
         ctx: Context, firewall_policy_id: str, site_id: SiteId = None
     ) -> JSON:
-        """Get one firewall policy: action, source, destination, protocol, schedule, and logging."""
+        """Get one firewall policy: action, source, destination, protocol, schedule, logging, and flow reports."""
         return await site_item(ctx, site_id, "firewall/policies", firewall_policy_id)
 
     @mcp.tool(annotations=READ_ONLY, tags={"read", "firewall"})

@@ -33,8 +33,9 @@ def register(mcp: FastMCP) -> None:
     async def get_wifi_overview(ctx: Context, site_id: SiteId = None) -> JSON:
         """Get the WiFi broadcasts, the radios of each access point, and the wireless clients of a site.
 
-        Each access point shows its wireless client count and, for each radio, the channel, the
-        channel width, the WLAN standard, and the share of retried transmissions. The issues list
+        Each access point shows its wireless client count and, for each radio, the band, the
+        channel, the channel width, the WLAN standard, the transmit power mode, and the share of
+        retried transmissions. A 0.9 GHz radio is a Wi-Fi HaLow (802.11ah) radio. The issues list
         online access points that use the same channel on the same band, radios with many
         retries, and disabled WiFi broadcasts.
         """

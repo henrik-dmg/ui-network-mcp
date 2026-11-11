@@ -13,7 +13,7 @@ uv run unifi-mcp                                # start the server (stdio), need
 
 ## Architecture
 
-This project is a FastMCP server for the UniFi Network integration API, version 10.6.106. Most tools are read-only. The write tools have the `write` tag, and `build_server` hides them unless `allow_writes` is true (`UNIFI_ALLOW_WRITES`). The full API specification is in `network_v10.6.106_openapi.json`. Search that file for an endpoint schema before you add a tool. Do not read the whole file, because it is large.
+This project is a FastMCP server for the UniFi Network integration API, version 11.0.97. Most tools are read-only. The write tools have the `write` tag, and `build_server` hides them unless `allow_writes` is true (`UNIFI_ALLOW_WRITES`). The full API specification is in `network_v11.0.97_openapi.json`. Search that file for an endpoint schema before you add a tool. Do not read the whole file, because it is large.
 
 The package in `src/unifi_mcp/` has these layers. Each file holds one type or one group of related functions:
 

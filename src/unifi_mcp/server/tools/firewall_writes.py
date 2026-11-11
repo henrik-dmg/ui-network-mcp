@@ -33,6 +33,9 @@ from unifi_mcp.server.sites import client_of, resolve_site
 TAGS = {WRITE_TAG, "firewall"}
 # A policy from a GET request has these fields, but the body of a PUT request does not.
 RESPONSE_ONLY_FIELDS = {"id", "index", "metadata"}
+# A PATCH request can change only these fields. It also works for system-defined policies.
+PATCH_FIELDS = {"loggingEnabled", "reportFlowEnabled"}
+REPORT_FLOW = "Show the traffic that the policy matches in Insights Flows."
 
 Name = Annotated[str, Field(min_length=1)]
 ConnectionStates = Annotated[
@@ -63,6 +66,7 @@ def register(mcp: FastMCP) -> None:
         ip_protocol_scope: IpProtocolScope | None = None,
         enabled: bool = True,
         logging_enabled: bool = False,
+        report_flow_enabled: Annotated[bool, Field(description=REPORT_FLOW)] = True,
         description: str | None = None,
         connection_state_filter: ConnectionStates = None,
         ipsec_filter: Ipsec = None,
@@ -93,6 +97,7 @@ def register(mcp: FastMCP) -> None:
             ipsec_filter=ipsec_filter,
             schedule=schedule,
             logging_enabled=logging_enabled,
+            report_flow_enabled=report_flow_enabled,
         )
         return await client_of(ctx).post(f"/v1/sites/{site}/firewall/policies", body)
 
@@ -111,6 +116,9 @@ def register(mcp: FastMCP) -> None:
         ipsec_filter: Ipsec = None,
         schedule: PolicySchedule = None,
         logging_enabled: bool | None = None,
+        report_flow_enabled: Annotated[
+            bool | None, Field(description=REPORT_FLOW)
+        ] = None,
         clear: Annotated[
             list[ClearableField] | None,
             Field(description="The optional fields to remove from the policy."),
@@ -121,8 +129,10 @@ def register(mcp: FastMCP) -> None:
 
         A given field replaces the full field of the policy. For example, a new destination
         replaces the zone and the traffic filter of the destination. If you change only
-        logging_enabled, the tool sends a PATCH request, which also works for system-defined
-        policies. For all other changes, the tool reads the policy and sends the full policy
+        logging_enabled or report_flow_enabled, the tool sends a PATCH request, which also
+        works for system-defined policies. The console ignores report_flow_enabled for the
+        system-defined policies that allow return traffic, multicast, or IPv6 neighbor
+        discovery. For all other changes, the tool reads the policy and sends the full policy
         with the changes.
         """
         site = await resolve_site(ctx, site_id)
@@ -139,6 +149,7 @@ def register(mcp: FastMCP) -> None:
             ipsec_filter=ipsec_filter,
             schedule=schedule,
             logging_enabled=logging_enabled,
+            report_flow_enabled=report_flow_enabled,
         )
         cleared = {to_camel(field) for field in clear or []}
         if not changes and not cleared:
@@ -148,7 +159,7 @@ def register(mcp: FastMCP) -> None:
                 f"Do not give a value for a field in clear: {', '.join(sorted(both))}."
             )
         client = client_of(ctx)
-        if changes.keys() == {"loggingEnabled"} and not cleared:
+        if changes.keys() <= PATCH_FIELDS and not cleared:
             return await client.patch(path, changes)
         current = await client.get(path)
         body = {

@@ -1,7 +1,7 @@
 # unifi-mcp
 
-An MCP server for the UniFi Network API (integration API, version 10.6.106). The server uses [FastMCP](https://gofastmcp.com).
-The API specification is in `network_v10.6.106_openapi.json`.
+An MCP server for the UniFi Network API (integration API, version 11.0.97). The server uses [FastMCP](https://gofastmcp.com).
+The API specification is in `network_v11.0.97_openapi.json`.
 
 ## Tools
 
@@ -60,7 +60,7 @@ If that variable is not set and the console has exactly one site, the server use
 | `delete_firewall_policy` | `DELETE /v1/sites/{siteId}/firewall/policies/{firewallPolicyId}` |
 | `reorder_firewall_policies` | `PUT /v1/sites/{siteId}/firewall/policies/ordering` |
 
-`update_firewall_policy` changes only the given fields. If the only change is `logging_enabled`, it sends a `PATCH` request. For all other changes, it reads the policy and sends the full policy with the changes.
+`update_firewall_policy` changes only the given fields. If the only changes are `logging_enabled` or `report_flow_enabled`, it sends a `PATCH` request. For all other changes, it reads the policy and sends the full policy with the changes.
 The server checks each policy body against typed models before it sends the request.
 
 Caution: Examine each write tool call before you approve it. A wrong firewall policy can block the access to the console.
