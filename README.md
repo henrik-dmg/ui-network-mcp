@@ -3,6 +3,39 @@
 An MCP server for the UniFi Network API (integration API, version 11.0.97). The server uses [FastMCP](https://gofastmcp.com).
 The API specification is in `network_v11.0.97_openapi.json`.
 
+## Comparison with sirkirby/unifi-mcp
+
+[sirkirby/unifi-mcp](https://github.com/sirkirby/unifi-mcp) is a larger MCP project for UniFi, with servers for UniFi Network, Protect, and Access.
+The two projects use different APIs and different credentials. Thus each project is useful for different tasks.
+The data about sirkirby/unifi-mcp is from November 2026.
+
+| | This server | sirkirby/unifi-mcp |
+|-|-|-|
+| UniFi applications | Network | Network, Protect, and Access |
+| API | Only the official integration API | Mostly the private controller API, and the integration API for some tools |
+| Credentials | An API key, which can be read-only | The username and password of a local admin account without MFA. An API key alone gives only some read tools. |
+| Network tools | Almost all read endpoints of the integration API, and combined report tools | 210 tools, and many of them use endpoints that the integration API does not have |
+| Changes | Firewall policies only. The write tools are hidden until you set `UNIFI_ALLOW_WRITES` to `true`. | Most configuration areas. Each change shows a preview before the server applies it. |
+| Remote access | The UniFi cloud connector, with `UNIFI_CONSOLE_ID` | A Cloudflare Worker and a relay on the local network |
+| Size | One small Python package | A monorepo with MCP servers, a REST and GraphQL server, a relay, and plugins |
+
+Use this server if:
+
+- You want to give the agent an API key, not an admin password. You can revoke an API key at any time, and a read-only key cannot change the network.
+- You want a documented API. Ubiquiti publishes a specification for each version of the integration API. The private API has no public documentation and can change with a firmware update.
+- You want remote access through the UniFi cloud connector, without a relay or another service.
+- You want a server that is small enough to read and examine in full.
+- You ask more questions about the network than you make changes to it.
+
+Use sirkirby/unifi-mcp if:
+
+- You use UniFi Protect or UniFi Access.
+- You must change settings that the integration API does not have, for example port forwards, static routes, NAT rules, QoS rules, or VPN clients.
+- You need history data, for example events, alarms, traffic statistics, DPI traffic, or traffic flows.
+- You want Claude Code plugins with agent skills for frequent tasks.
+
+You can use both servers in the same MCP client. Give each server a different name in the MCP configuration.
+
 ## Tools
 
 Most tools are read-only. The server adds the [write tools](#write-tools) only if `UNIFI_ALLOW_WRITES` is `true`.
