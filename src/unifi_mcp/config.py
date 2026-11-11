@@ -12,7 +12,10 @@ LOCAL_CONSOLE_URL = "https://{host}/proxy/network/integration"
 class Settings(BaseSettings):
     """Connection settings, read from the UNIFI_* environment variables."""
 
-    model_config = SettingsConfigDict(env_prefix="UNIFI_", extra="ignore")
+    # The Claude Code plugin gives an empty string for each option that the user did not set.
+    model_config = SettingsConfigDict(
+        env_prefix="UNIFI_", extra="ignore", env_ignore_empty=True
+    )
 
     api_key: SecretStr
     # Set exactly one of these three. The host is the IP address or hostname of a local console.
