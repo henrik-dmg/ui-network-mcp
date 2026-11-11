@@ -1,0 +1,120 @@
+import asyncio
+from typing import Any
+
+import httpx
+from fastmcp.exceptions import ToolError
+
+from ui_network_mcp.client.errors import UniFiAPIError
+from ui_network_mcp.client.json_types import JSON
+from ui_network_mcp.client.redaction import REDACTED, contains_redacted, redact
+from ui_network_mcp.config import Settings
+
+MAX_PAGE_SIZE = 200
+
+
+class UniFiClient:
+    """A thin async wrapper around the UniFi Network integration API."""
+
+    def __init__(self, http: httpx.AsyncClient):
+        self._http = http
+
+    @classmethod
+    def from_settings(cls, settings: Settings) -> UniFiClient:
+        http = httpx.AsyncClient(
+            base_url=settings.resolved_base_url,
+            headers={
+                "X-API-KEY": settings.api_key.get_secret_value(),
+                "Accept": "application/json",
+            },
+            verify=settings.verify_tls,
+            timeout=settings.timeout,
+        )
+        return cls(http)
+
+    async def aclose(self) -> None:
+        await self._http.aclose()
+
+    async def get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        return await self._request("GET", path, params=_without_none(params or {}))
+
+    async def post(self, path: str, body: JSON) -> Any:
+        """Send a POST request. The body does not include keys with a None value."""
+        return await self._request("POST", path, json=_write_body(body))
+
+    async def put(
+        self, path: str, body: JSON, params: dict[str, Any] | None = None
+    ) -> Any:
+        """Send a PUT request. The body does not include keys with a None value."""
+        return await self._request(
+            "PUT", path, json=_write_body(body), params=_without_none(params or {})
+        )
+
+    async def patch(self, path: str, body: JSON) -> Any:
+        """Send a PATCH request. The body does not include keys with a None value."""
+        return await self._request("PATCH", path, json=_write_body(body))
+
+    async def delete(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        return await self._request("DELETE", path, params=_without_none(params or {}))
+
+    async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
+        try:
+            response = await self._http.request(method, path, **kwargs)
+        except httpx.HTTPError as error:
+            raise UniFiAPIError(0, f"Request to {path} failed: {error}") from error
+        if response.is_error:
+            raise UniFiAPIError.from_response(response)
+        # Some action endpoints return an empty body.
+        return redact(response.json()) if response.content else {}
+
+    async def get_page(
+        self, path: str, *, offset: int = 0, limit: int = 25, filter: str | None = None
+    ) -> JSON:
+        return await self.get(
+            path, {"offset": offset, "limit": limit, "filter": filter}
+        )
+
+    async def get_all(self, path: str, *, filter: str | None = None) -> list[JSON]:
+        """Follow the pagination until all items of a list endpoint are read."""
+        items: list[JSON] = []
+        while True:
+            page = await self.get_page(
+                path, offset=len(items), limit=MAX_PAGE_SIZE, filter=filter
+            )
+            data = page.get("data", [])
+            items.extend(data)
+            if not data or len(items) >= page.get("totalCount", 0):
+                return items
+
+    async def gather_limited(
+        self, paths: list[str], concurrency: int = 8, return_errors: bool = False
+    ) -> list[Any]:
+        """Get many single resources, with a limit on the number of parallel requests.
+
+        If return_errors is true, the result has a UniFiAPIError in place of each failed request.
+        """
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def fetch(path: str) -> Any:
+            async with semaphore:
+                try:
+                    return await self.get(path)
+                except UniFiAPIError as error:
+                    if return_errors:
+                        return error
+                    raise
+
+        return await asyncio.gather(*(fetch(path) for path in paths))
+
+
+def _without_none(values: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in values.items() if value is not None}
+
+
+def _write_body(body: JSON) -> JSON:
+    """Remove the None values. Refuse a body that would replace a secret with REDACTED."""
+    if contains_redacted(body):
+        raise ToolError(
+            f"The request body contains {REDACTED}. The server hides the secrets in its "
+            "results. Give the real value, or remove the field."
+        )
+    return _without_none(body)

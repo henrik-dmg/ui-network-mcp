@@ -5,8 +5,9 @@
   "author": {
     "name": "Henrik Panhans"
   },
-  "homepage": "https://github.com/henrik-dmg/unifi-mcp",
-  "repository": "https://github.com/henrik-dmg/unifi-mcp",
+  "homepage": "https://github.com/henrik-dmg/ui-network-mcp",
+  "repository": "https://github.com/henrik-dmg/ui-network-mcp",
+  "license": "MIT",
   "keywords": ["unifi", "network", "firewall", "mcp"],
   "userConfig": {
     "apiKey": {
@@ -69,7 +70,7 @@
         "--no-dev",
         "--frozen",
         "--quiet",
-        "unifi-mcp"
+        "ui-network-mcp"
       ],
       "env": {
         "UNIFI_API_KEY": "${user_config.apiKey}",

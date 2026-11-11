@@ -6,9 +6,9 @@ import respx
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
 
-from unifi_mcp.client import UniFiClient
-from unifi_mcp.client.redaction import REDACTED, redact
-from unifi_mcp.server import build_server
+from ui_network_mcp.client import UniFiClient
+from ui_network_mcp.client.redaction import REDACTED, redact
+from ui_network_mcp.server import build_server
 
 BASE = "https://console.test/proxy/network/integration"
 SITE = "11111111-1111-1111-1111-111111111111"

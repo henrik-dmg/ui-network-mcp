@@ -1,0 +1,19 @@
+import sys
+
+
+def main() -> None:
+    from pydantic import ValidationError
+
+    from ui_network_mcp.server import create_server
+
+    try:
+        server = create_server()
+    except ValidationError as error:
+        problems = "; ".join(
+            f"{'.'.join(map(str, e['loc'])) or 'settings'}: {e['msg']}"
+            for e in error.errors()
+        )
+        sys.exit(
+            f"ui-network-mcp: invalid configuration ({problems}). Set the UNIFI_* environment variables."
+        )
+    server.run()

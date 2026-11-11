@@ -1,14 +1,31 @@
 [project]
-name = "unifi-mcp"
+name = "ui-network-mcp"
 version = "0.1.0"
 description = "MCP server for the UniFi Network API"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Henrik Panhans", email = "henrik@panhans.dev" }]
-requires-python = ">=3.14"
+keywords = ["unifi", "ubiquiti", "mcp", "model-context-protocol", "network", "firewall"]
+classifiers = [
+    "Intended Audience :: System Administrators",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: System :: Networking",
+]
+# pyyaml, a dependency of fastmcp, does not build on Python 3.15 yet.
+requires-python = ">=3.14,<3.15"
 dependencies = ["fastmcp>=4.0.10", "httpx>=0.28.1", "pydantic-settings>=2.15.0"]
 
+[project.urls]
+Homepage = "https://github.com/henrik-dmg/ui-network-mcp"
+Repository = "https://github.com/henrik-dmg/ui-network-mcp"
+Issues = "https://github.com/henrik-dmg/ui-network-mcp/issues"
+
 [project.scripts]
-unifi-mcp = "unifi_mcp:main"
+ui-network-mcp = "ui_network_mcp:main"
 
 [build-system]
 requires = ["uv_build>=0.9.27,<0.10.0"]
@@ -24,8 +41,6 @@ dev = [
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-
-[tool.ruff]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B"]

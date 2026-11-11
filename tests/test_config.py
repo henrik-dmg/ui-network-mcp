@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from unifi_mcp.config import Settings
+from ui_network_mcp.config import Settings
 
 UNIFI_VARIABLES = (
     "API_KEY",
