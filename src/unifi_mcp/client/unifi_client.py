@@ -51,8 +51,8 @@ class UniFiClient:
         """Send a PATCH request. The body does not include keys with a None value."""
         return await self._request("PATCH", path, json=_without_none(body))
 
-    async def delete(self, path: str) -> Any:
-        return await self._request("DELETE", path)
+    async def delete(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        return await self._request("DELETE", path, params=_without_none(params or {}))
 
     async def _request(self, method: str, path: str, **kwargs: Any) -> Any:
         try:

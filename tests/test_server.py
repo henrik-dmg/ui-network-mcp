@@ -601,7 +601,19 @@ WRITE_TOOLS = {
     "update_firewall_policy",
     "delete_firewall_policy",
     "reorder_firewall_policies",
+    "adopt_device",
+    "remove_device",
+    "restart_device",
+    "power_cycle_port",
+    "authorize_guest",
+    "unauthorize_guest",
+    "create_vouchers",
+    "delete_voucher",
+    "delete_vouchers",
 }
+DEVICES = f"/v1/sites/{SITE}/devices"
+CLIENTS = f"/v1/sites/{SITE}/clients"
+VOUCHERS = f"/v1/sites/{SITE}/hotspot/vouchers"
 
 
 def sent_json(route):
@@ -612,7 +624,7 @@ async def test_write_tools_need_allow_writes():
     async with Client(make_server(allow_writes=True)) as client:
         tools = await client.list_tools()
     writes = {tool.name for tool in tools if not tool.annotations.read_only_hint}
-    assert len(tools) == 55
+    assert len(tools) == 64
     assert writes == WRITE_TOOLS
 
 
@@ -820,3 +832,140 @@ async def test_rejected_writes_mention_the_api_key(api):
             await client.call_tool(
                 "delete_firewall_policy", {"firewall_policy_id": "p1"}
             )
+
+
+async def test_adopt_device_sends_the_mac_address(api):
+    route = api.post(DEVICES).respond(json={"id": GATEWAY})
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        result = await client.call_tool(
+            "adopt_device", {"mac_address": "aa:bb:cc:00:00:01"}
+        )
+    assert result.data == {"id": GATEWAY}
+    assert sent_json(route) == {
+        "macAddress": "aa:bb:cc:00:00:01",
+        "ignoreDeviceLimit": False,
+    }
+
+
+async def test_remove_device_returns_the_id(api):
+    route = api.delete(f"{DEVICES}/{AP}")
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        result = await client.call_tool("remove_device", {"device_id": AP})
+    assert route.called
+    assert result.data == {"removedDeviceId": AP}
+
+
+@pytest.mark.parametrize(
+    ("tool", "arguments", "path", "expected"),
+    [
+        (
+            "restart_device",
+            {"device_id": AP},
+            f"{DEVICES}/{AP}/actions",
+            {"deviceId": AP, "action": "RESTART"},
+        ),
+        (
+            "power_cycle_port",
+            {"device_id": SWITCH, "port_idx": 5},
+            f"{DEVICES}/{SWITCH}/interfaces/ports/5/actions",
+            {"deviceId": SWITCH, "portIdx": 5, "action": "POWER_CYCLE"},
+        ),
+    ],
+)
+async def test_device_actions_send_the_action(api, tool, arguments, path, expected):
+    route = api.post(path)
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        result = await client.call_tool(tool, arguments)
+    assert sent_json(route) == {"action": expected["action"]}
+    assert result.data == expected
+
+
+async def test_power_cycle_port_rejects_a_port_index_below_one(api):
+    route = api.post(f"{DEVICES}/{SWITCH}/interfaces/ports/0/actions")
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool(
+                "power_cycle_port", {"device_id": SWITCH, "port_idx": 0}
+            )
+    assert not route.called
+
+
+async def test_authorize_guest_sends_only_the_given_limits(api):
+    response = {"action": "AUTHORIZE_GUEST_ACCESS", "grantedAuthorization": {}}
+    route = api.post(f"{CLIENTS}/c1/actions").respond(json=response)
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        result = await client.call_tool(
+            "authorize_guest",
+            {
+                "client_id": "c1",
+                "time_limit_minutes": 60,
+                "data_usage_limit_mbytes": 500,
+            },
+        )
+    assert result.data == response
+    assert sent_json(route) == {
+        "action": "AUTHORIZE_GUEST_ACCESS",
+        "timeLimitMinutes": 60,
+        "dataUsageLimitMBytes": 500,
+    }
+
+
+async def test_unauthorize_guest_sends_the_action(api):
+    route = api.post(f"{CLIENTS}/c1/actions").respond(
+        json={"action": "UNAUTHORIZE_GUEST_ACCESS", "revokedAuthorization": {}}
+    )
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        await client.call_tool("unauthorize_guest", {"client_id": "c1"})
+    assert sent_json(route) == {"action": "UNAUTHORIZE_GUEST_ACCESS"}
+
+
+async def test_create_vouchers_sends_the_limits(api):
+    route = api.post(VOUCHERS).respond(201, json={"vouchers": [{"id": "v1"}]})
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        result = await client.call_tool(
+            "create_vouchers",
+            {
+                "name": "Conference",
+                "time_limit_minutes": 480,
+                "count": 20,
+                "authorized_guest_limit": 1,
+                "rx_rate_limit_kbps": 10000,
+            },
+        )
+    assert result.data == {"vouchers": [{"id": "v1"}]}
+    assert sent_json(route) == {
+        "name": "Conference",
+        "count": 20,
+        "timeLimitMinutes": 480,
+        "authorizedGuestLimit": 1,
+        "rxRateLimitKbps": 10000,
+    }
+
+
+@pytest.mark.parametrize(
+    "change", [{"count": 1001}, {"time_limit_minutes": 0}, {"tx_rate_limit_kbps": 1}]
+)
+async def test_create_vouchers_checks_the_limits(api, change):
+    route = api.post(VOUCHERS)
+    arguments = {"name": "Guests", "time_limit_minutes": 60} | change
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        with pytest.raises(ToolError):
+            await client.call_tool("create_vouchers", arguments)
+    assert not route.called
+
+
+async def test_delete_voucher_returns_the_deleted_count(api):
+    api.delete(f"{VOUCHERS}/v1").respond(json={"vouchersDeleted": 1})
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        result = await client.call_tool("delete_voucher", {"voucher_id": "v1"})
+    assert result.data == {"vouchersDeleted": 1}
+
+
+async def test_delete_vouchers_sends_the_filter(api):
+    route = api.delete(VOUCHERS).respond(json={"vouchersDeleted": 3})
+    async with Client(make_server(SITE, allow_writes=True)) as client:
+        result = await client.call_tool(
+            "delete_vouchers", {"filter": "expired.eq(true)"}
+        )
+    assert route.calls.last.request.url.params["filter"] == "expired.eq(true)"
+    assert result.data == {"vouchersDeleted": 3}

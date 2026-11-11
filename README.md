@@ -15,7 +15,7 @@ The data about sirkirby/unifi-mcp is from November 2026.
 | API | Only the official integration API | Mostly the private controller API, and the integration API for some tools |
 | Credentials | An API key, which can be read-only | The username and password of a local admin account without MFA. An API key alone gives only some read tools. |
 | Network tools | Almost all read endpoints of the integration API, and combined report tools | 210 tools, and many of them use endpoints that the integration API does not have |
-| Changes | Firewall policies only. The write tools are hidden until you set `UNIFI_ALLOW_WRITES` to `true`. | Most configuration areas. Each change shows a preview before the server applies it. |
+| Changes | Firewall policies, device and port actions, guest access, and Hotspot vouchers. The write tools are hidden until you set `UNIFI_ALLOW_WRITES` to `true`. | Most configuration areas. Each change shows a preview before the server applies it. |
 | Remote access | The UniFi cloud connector, with `UNIFI_CONSOLE_ID` | A Cloudflare Worker and a relay on the local network |
 | Size | One small Python package | A monorepo with MCP servers, a REST and GraphQL server, a relay, and plugins |
 
@@ -92,11 +92,19 @@ If that variable is not set and the console has exactly one site, the server use
 | `update_firewall_policy` | `PATCH` or `GET` and `PUT /v1/sites/{siteId}/firewall/policies/{firewallPolicyId}` |
 | `delete_firewall_policy` | `DELETE /v1/sites/{siteId}/firewall/policies/{firewallPolicyId}` |
 | `reorder_firewall_policies` | `PUT /v1/sites/{siteId}/firewall/policies/ordering` |
+| `adopt_device` | `POST /v1/sites/{siteId}/devices` |
+| `remove_device` | `DELETE /v1/sites/{siteId}/devices/{deviceId}` |
+| `restart_device` | `POST /v1/sites/{siteId}/devices/{deviceId}/actions` |
+| `power_cycle_port` | `POST /v1/sites/{siteId}/devices/{deviceId}/interfaces/ports/{portIdx}/actions` |
+| `authorize_guest`, `unauthorize_guest` | `POST /v1/sites/{siteId}/clients/{clientId}/actions` |
+| `create_vouchers` | `POST /v1/sites/{siteId}/hotspot/vouchers` |
+| `delete_voucher` | `DELETE /v1/sites/{siteId}/hotspot/vouchers/{voucherId}` |
+| `delete_vouchers` | `DELETE /v1/sites/{siteId}/hotspot/vouchers` with a filter |
 
 `update_firewall_policy` changes only the given fields. If the only changes are `logging_enabled` or `report_flow_enabled`, it sends a `PATCH` request. For all other changes, it reads the policy and sends the full policy with the changes.
 The server checks each policy body against typed models before it sends the request.
 
-Caution: Examine each write tool call before you approve it. A wrong firewall policy can block the access to the console.
+Caution: Examine each write tool call before you approve it. A wrong firewall policy can block the access to the console. `remove_device` resets an online device to the factory settings.
 
 ## Configuration
 

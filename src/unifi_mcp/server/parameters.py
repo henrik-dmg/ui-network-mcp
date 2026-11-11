@@ -39,3 +39,17 @@ SiteId = Annotated[
 Filter = Annotated[str | None, Field(description=FILTER_HELP)]
 Limit = Annotated[int, Field(ge=1, le=MAX_PAGE_SIZE, description="Page size (1-200).")]
 Offset = Annotated[int, Field(ge=0, description="Number of items to skip.")]
+
+# The limits of a guest authorization and of a Hotspot voucher.
+DataUsageLimit = Annotated[
+    int | None,
+    Field(ge=1, le=1_048_576, description="The data usage limit in megabytes."),
+]
+RxRateLimit = Annotated[
+    int | None,
+    Field(ge=2, le=100_000, description="The download rate limit in kbit/s."),
+]
+TxRateLimit = Annotated[
+    int | None,
+    Field(ge=2, le=100_000, description="The upload rate limit in kbit/s."),
+]

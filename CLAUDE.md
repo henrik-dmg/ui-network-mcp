@@ -36,7 +36,7 @@ Patterns to follow when you add a tool:
 Patterns to follow when you add a write tool:
 
 - Give the tool the `WRITE_TAG` tag and the `ADDITIVE_WRITE` or `DESTRUCTIVE_WRITE` annotation.
-- Model the body in `models/` with discriminated unions. Check the models against the real objects of a console: each GET result must parse, and `request_body` must give back the same JSON. A read-only API key is sufficient for this check.
+- Model a nested body in `models/` with discriminated unions. For a flat body, give the fields as tool parameters with `Field` constraints, and make the body with `request_body`. See `create_vouchers`. Check the models against the real objects of a console: each GET result must parse, and `request_body` must give back the same JSON. A read-only API key is sufficient for this check.
 - A PUT endpoint needs the full object. An update tool takes optional fields, reads the object, removes `id`, `index`, and `metadata`, adds the changes, and sends the result. See `update_firewall_policy`.
 - FastMCP inlines each `$ref` of a tool schema. Thus large models make a large schema: `create_firewall_policy` has about 48 KB.
 
