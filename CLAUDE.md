@@ -9,7 +9,15 @@ uv run pytest                                   # all tests
 uv run pytest tests/test_server.py::test_name   # one test
 uv run ruff check && uv run ruff format         # lint and format
 uv run unifi-mcp                                # start the server (stdio), needs the UNIFI_* variables
+claude plugin validate .                        # check the plugin and the marketplace manifests
+claude --plugin-dir . plugin details unifi      # show the skills and their token cost
 ```
+
+## Plugin
+
+The repository root is also a Claude Code plugin (`unifi`) and a marketplace (`unifi-mcp`), in `.claude-plugin/`. `plugin.json` declares the options (`userConfig`) and the MCP server. The MCP server is inline in `plugin.json`, because a `.mcp.json` at the root would also be a project MCP server for each person who opens this repository. The server starts with `uv run --project ${CLAUDE_PLUGIN_ROOT}`, so the server always has the same version as the skills. An unset option gives an empty environment variable, which `Settings` ignores.
+
+The skills in `skills/` name the tools and the fields of the tool results. When you rename a tool or a result field, update the skills. Keep the `version` in `plugin.json` equal to the version in `pyproject.toml`.
 
 ## Architecture
 

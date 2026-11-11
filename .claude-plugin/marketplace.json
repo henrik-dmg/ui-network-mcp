@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "unifi-mcp",
+  "description": "The UniFi plugin for Claude Code: an MCP server for the UniFi Network integration API, with skills.",
+  "owner": {
+    "name": "Henrik Panhans"
+  },
+  "plugins": [
+    {
+      "name": "unifi",
+      "source": "./",
+      "description": "Read and manage a UniFi Network console through the official integration API, with an API key.",
+      "category": "productivity"
+    }
+  ]
+}

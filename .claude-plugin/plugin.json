@@ -1,0 +1,85 @@
+{
+  "name": "unifi",
+  "version": "0.1.0",
+  "description": "Read and manage a UniFi Network console through the official integration API, with an API key. Includes skills for a health check, a firewall audit, client troubleshooting, and firewall changes.",
+  "author": {
+    "name": "Henrik Panhans"
+  },
+  "homepage": "https://github.com/henrik-dmg/unifi-mcp",
+  "repository": "https://github.com/henrik-dmg/unifi-mcp",
+  "keywords": ["unifi", "network", "firewall", "mcp"],
+  "userConfig": {
+    "apiKey": {
+      "type": "string",
+      "title": "API key",
+      "description": "The API key from UniFi Network, in Settings > Control Plane > Integrations. A read-only key is sufficient unless you allow changes.",
+      "required": true,
+      "sensitive": true
+    },
+    "host": {
+      "type": "string",
+      "title": "Console host",
+      "description": "The IP address or hostname of a local console, for example 192.168.1.1. Set exactly one of the console host, the console ID, or the base URL.",
+      "required": false,
+      "default": ""
+    },
+    "consoleId": {
+      "type": "string",
+      "title": "Console ID",
+      "description": "The console ID from unifi.ui.com. The server then connects through the UniFi cloud connector.",
+      "required": false,
+      "default": ""
+    },
+    "baseUrl": {
+      "type": "string",
+      "title": "Base URL",
+      "description": "Any other URL that ends in /proxy/network/integration.",
+      "required": false,
+      "default": ""
+    },
+    "verifyTls": {
+      "type": "boolean",
+      "title": "Verify the TLS certificate",
+      "description": "A local console usually has a self-signed certificate. Turn this off only on a network that you trust.",
+      "required": false,
+      "default": true
+    },
+    "defaultSiteId": {
+      "type": "string",
+      "title": "Default site ID",
+      "description": "The site to use when a tool call has no site ID. You do not need it if the console has only one site.",
+      "required": false,
+      "default": ""
+    },
+    "allowWrites": {
+      "type": "boolean",
+      "title": "Allow changes",
+      "description": "Add the tools that change the network, such as firewall policies, device restarts, and vouchers. The API key must have write access.",
+      "required": false,
+      "default": false
+    }
+  },
+  "mcpServers": {
+    "unifi": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--project",
+        "${CLAUDE_PLUGIN_ROOT}",
+        "--no-dev",
+        "--frozen",
+        "--quiet",
+        "unifi-mcp"
+      ],
+      "env": {
+        "UNIFI_API_KEY": "${user_config.apiKey}",
+        "UNIFI_HOST": "${user_config.host}",
+        "UNIFI_CONSOLE_ID": "${user_config.consoleId}",
+        "UNIFI_BASE_URL": "${user_config.baseUrl}",
+        "UNIFI_VERIFY_TLS": "${user_config.verifyTls}",
+        "UNIFI_DEFAULT_SITE_ID": "${user_config.defaultSiteId}",
+        "UNIFI_ALLOW_WRITES": "${user_config.allowWrites}"
+      }
+    }
+  }
+}

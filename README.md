@@ -18,6 +18,7 @@ The data about sirkirby/unifi-mcp is from November 2026.
 | Changes | Firewall policies, device and port actions, guest access, and Hotspot vouchers. The write tools are hidden until you set `UNIFI_ALLOW_WRITES` to `true`. | Most configuration areas. Each change shows a preview before the server applies it. |
 | Secrets | WiFi passphrases are redacted | WiFi passphrases, VPN keys, and other secrets are redacted |
 | Remote access | The UniFi cloud connector, with `UNIFI_CONSOLE_ID` | A Cloudflare Worker and a relay on the local network |
+| Claude Code plugin | One plugin with 4 skills | One plugin for each UniFi application, with skills |
 | Size | One small Python package | A monorepo with MCP servers, a REST and GraphQL server, a relay, and plugins |
 
 Use this server if:
@@ -33,7 +34,6 @@ Use sirkirby/unifi-mcp if:
 - You use UniFi Protect or UniFi Access.
 - You must change settings that the integration API does not have, for example port forwards, static routes, NAT rules, QoS rules, or VPN clients.
 - You need history data, for example events, alarms, traffic statistics, DPI traffic, or traffic flows.
-- You want Claude Code plugins with agent skills for frequent tasks.
 
 You can use both servers in the same MCP client. Give each server a different name in the MCP configuration.
 
@@ -129,8 +129,41 @@ The server reads its settings from these environment variables:
 
 Set exactly one of `UNIFI_HOST`, `UNIFI_CONSOLE_ID`, or `UNIFI_BASE_URL`.
 
+## Install the Claude Code plugin
+
+The plugin adds the MCP server and four skills to Claude Code. The plugin needs [uv](https://docs.astral.sh/uv/).
+In Claude Code 2.1.275 or later, install the plugin with one command:
+
+```text
+/plugin install unifi --marketplace henrik-dmg/unifi-mcp
+```
+
+In an earlier version, add the marketplace first, and then install the plugin:
+
+```text
+/plugin marketplace add henrik-dmg/unifi-mcp
+/plugin install unifi@unifi-mcp
+```
+
+Claude Code then asks for the plugin options. The options are the same as the [environment variables](#configuration): the API key, one of the console host, the console ID, or the base URL, and the optional settings. Claude Code keeps the API key in the system keychain.
+To change the options later, run `/plugin configure unifi@unifi-mcp`.
+
+If you added the server before with `claude mcp add unifi`, remove that server with `claude mcp remove unifi`. Otherwise Claude Code has each tool two times.
+
+### Skills
+
+| Skill | What it does |
+|-|-|
+| `/unifi:health-check` | Makes a ranked list of the problems of a site: offline devices, high CPU or memory, WiFi channel conflicts, slow ports, and firmware updates. |
+| `/unifi:firewall-audit` | Examines each user-defined firewall policy for shadowed, too broad, and duplicate policies, missing logging, and unused objects. |
+| `/unifi:client-troubleshooting` | Finds the probable cause when one client is slow or has no connection. It examines each device from the client to the gateway. |
+| `/unifi:firewall-change` | Changes the firewall in four phases: intent, plan, apply, and check. It writes nothing before you approve the plan. It needs the option "Allow changes". |
+
+Claude also uses a skill when your question matches it, for example "Is my network healthy?".
+
 ## Add the server to Claude Code
 
+If you do not want the plugin, you can add only the MCP server.
 You do not have to clone the repository. `uvx` installs the server from GitHub and starts it:
 
 ```sh
