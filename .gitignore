@@ -11,3 +11,6 @@ wheels/
 
 # Local credentials
 .env
+
+# The UniFi API specification. Ubiquiti owns it, so it is not in the repository.
+/network_v*_openapi.json
