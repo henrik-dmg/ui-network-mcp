@@ -1,6 +1,6 @@
 {
   "name": "unifi",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Read and manage a UniFi Network console through the official integration API, with an API key. Includes skills for a health check, a firewall audit, client troubleshooting, and firewall changes.",
   "author": {
     "name": "Henrik Panhans"
