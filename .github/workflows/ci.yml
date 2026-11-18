@@ -72,8 +72,8 @@ jobs:
             echo "::error file=.claude-plugin/plugin.json::The plugin version $plugin is not the package version $package in pyproject.toml."
             exit 1
           fi
-      # Increase this version to get the newest plugin checks.
+      # Install the newest version to get the newest plugin checks.
       - name: Install Claude Code
-        run: npm install --global @anthropic-ai/claude-code@2.1.322
+        run: npm install --global @anthropic-ai/claude-code@latest
       - name: Validate the plugin and the marketplace
-        run: claude plugin validate .
+        run: claude plugin validate . --strict

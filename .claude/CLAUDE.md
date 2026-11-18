@@ -9,7 +9,7 @@ uv run pytest                                   # all tests
 uv run pytest tests/test_server.py::test_name   # one test
 uv run ruff check && uv run ruff format         # lint and format
 uv run ui-network-mcp                           # start the server (stdio), needs the UNIFI_* variables
-claude plugin validate .                        # check the plugin and the marketplace manifests
+claude plugin validate . --strict               # check the plugin and the marketplace manifests
 claude --plugin-dir . plugin details unifi      # show the skills and their token cost
 ```
 
